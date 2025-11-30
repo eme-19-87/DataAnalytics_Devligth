@@ -1,4 +1,4 @@
-CREACREATE OR REPLACE PROCEDURE sp_load_products_silver_layer()
+CREATE OR REPLACE PROCEDURE sp_load_products_silver_layer()
 LANGUAGE plpgsql
 AS $$
 DECLARE
@@ -337,26 +337,165 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE PROCEDURE sp_load_payments_silver_layer()
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    t_start        TIMESTAMP;
+    t_truncate_end TIMESTAMP;
+    t_insert_end   TIMESTAMP;
+    t_end          TIMESTAMP;
+
+BEGIN
+    ------------------------------------------------------------------
+    -- Inicio del proceso
+    ------------------------------------------------------------------
+    t_start := clock_timestamp();
+    RAISE NOTICE 'Inicio total: %', t_start;
+
+    ------------------------------------------------------------------
+    -- TRUNCATE
+    ------------------------------------------------------------------
+    BEGIN
+        TRUNCATE TABLE silver.olist_order_payments RESTART IDENTITY;
+        t_truncate_end := clock_timestamp();
+        RAISE NOTICE 'Tiempo TRUNCATE: % segundos',
+            EXTRACT(EPOCH FROM (t_truncate_end - t_start));
+    EXCEPTION
+        WHEN OTHERS THEN
+            RAISE NOTICE 'Error en TRUNCATE: %', SQLERRM;
+            RETURN;
+    END;
+
+    ------------------------------------------------------------------
+    -- INSERT
+    ------------------------------------------------------------------
+    BEGIN
+        INSERT INTO silver.olist_order_payments(
+            order_id,
+            payment_sequential,
+            payment_type,
+            payment_installments,
+            payment_value
+        )
+        SELECT 
+            order_id,
+            payment_sequential,
+            payment_type,
+            payment_installments,
+            payment_value
+        FROM bronze.olist_order_payments;
+
+        t_insert_end := clock_timestamp();
+        RAISE NOTICE 'Tiempo INSERT: % segundos',
+            EXTRACT(EPOCH FROM (t_insert_end - t_truncate_end));
+    EXCEPTION
+        WHEN OTHERS THEN
+            RAISE NOTICE 'Error en INSERT: %', SQLERRM;
+            RETURN;
+    END;
+
+    ------------------------------------------------------------------
+    -- Tiempo total
+    ------------------------------------------------------------------
+    t_end := clock_timestamp();
+    RAISE NOTICE 'Tiempo TOTAL: % segundos',
+        EXTRACT(EPOCH FROM (t_end - t_start));
+
+END;
+$$;
+
+CREATE OR REPLACE PROCEDURE sp_load_order_reviews_silver_layer()
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    t_start TIMESTAMP;
+    t_end   TIMESTAMP;
+
+BEGIN
+    RAISE NOTICE '=== INICIO: sp_load_order_reviews_silver_layer() ===';
+    t_start := clock_timestamp();
+
+    BEGIN
+        ----------------------------------------------------------------------
+        -- TRUNCATE
+        ----------------------------------------------------------------------
+        RAISE NOTICE '>> TRUNCATE TABLE silver.olist_order_reviews ...';
+        TRUNCATE TABLE silver.olist_order_reviews;
+
+        ----------------------------------------------------------------------
+        -- INSERT
+        ----------------------------------------------------------------------
+        RAISE NOTICE '>> INSERTANDO registros en silver.olist_order_reviews ...';
+
+        INSERT INTO silver.olist_order_reviews (
+            review_id,
+            order_id,
+            review_comment_title,
+            review_comment_message,
+            review_creation_date,
+            review_answer_timestamp
+        )
+        SELECT
+            review_id,
+            order_id,
+            TRIM(COALESCE(review_comment_title, 'n/a'))      AS review_comment_title,
+            TRIM(COALESCE(review_comment_message, 'n/a'))    AS review_comment_message,
+            review_creation_date,
+            review_answer_timestamp
+        FROM bronze.olist_order_reviews;
+
+        RAISE NOTICE '   ✓ Inserción completada correctamente.';
+
+    EXCEPTION WHEN OTHERS THEN
+        RAISE EXCEPTION 'ERROR dentro de sp_load_order_reviews_silver_layer(): %', SQLERRM;
+    END;
+
+    ----------------------------------------------------------------------
+    -- TIEMPO FINAL
+    ----------------------------------------------------------------------
+    t_end := clock_timestamp();
+    RAISE NOTICE '=== FIN: sp_load_order_reviews_silver_layer() ===';
+    RAISE NOTICE 'Tiempo total: % ms', EXTRACT(MILLISECOND FROM (t_end - t_start));
+
+END;
+$$;
 
 
 CREATE OR REPLACE PROCEDURE sp_master_load_silver_layer()
 LANGUAGE plpgsql
 AS $$
 DECLARE
+    -- Tiempos globales
     t_total_start   TIMESTAMP;
     t_total_end     TIMESTAMP;
 
+    -- Tiempos productos
     t_products_start TIMESTAMP;
     t_products_end   TIMESTAMP;
 
+    -- Tiempos órdenes
     t_orders_start   TIMESTAMP;
     t_orders_end     TIMESTAMP;
+
+    -- Tiempos order_items
+    t_items_start TIMESTAMP;
+    t_items_end   TIMESTAMP;
+
+    -- Tiempos order_payments
+    t_payments_start TIMESTAMP;
+    t_payments_end   TIMESTAMP;
+
+    -- Tiempos order_reviews  << NUEVO
+    t_reviews_start TIMESTAMP;
+    t_reviews_end   TIMESTAMP;
 BEGIN
     RAISE NOTICE '=== INICIO DEL PROCESO MAESTRO PARA CARGAR SILVER LAYERS ===';
     t_total_start := clock_timestamp();
 
+
     ----------------------------------------------------------------------
-    -- TRY–CATCH 1: Cargar productos (silver.olist_products)
+    -- 1) Productos
     ----------------------------------------------------------------------
     BEGIN
         RAISE NOTICE '>> Ejecutando sp_load_products_silver_layer() ...';
@@ -374,7 +513,7 @@ BEGIN
 
 
     ----------------------------------------------------------------------
-    -- TRY–CATCH 2: Cargar órdenes (silver.olist_orders)
+    -- 2) Órdenes
     ----------------------------------------------------------------------
     BEGIN
         RAISE NOTICE '>> Ejecutando sp_load_orderss_silver_layer() ...';
@@ -390,8 +529,9 @@ BEGIN
         RAISE EXCEPTION 'ERROR dentro de sp_load_orderss_silver_layer(): %', SQLERRM;
     END;
 
-	----------------------------------------------------------------------
-    -- 3) load order items   << NUEVO
+
+    ----------------------------------------------------------------------
+    -- 3) Order Items
     ----------------------------------------------------------------------
     BEGIN
         RAISE NOTICE '>> Ejecutando sp_load_order_items_silver_layer() ...';
@@ -409,14 +549,54 @@ BEGIN
 
 
     ----------------------------------------------------------------------
-    -- REPORTE FINAL
+    -- 4) Order Payments
+    ----------------------------------------------------------------------
+    BEGIN
+        RAISE NOTICE '>> Ejecutando sp_load_order_payments_silver_layer() ...';
+        t_payments_start := clock_timestamp();
+
+        CALL sp_load_payments_silver_layer();
+
+        t_payments_end := clock_timestamp();
+        RAISE NOTICE '   ✓ Finalizado sp_load_order_payments_silver_layer() (% ms)',
+            EXTRACT(MILLISECOND FROM t_payments_end - t_payments_start);
+
+    EXCEPTION WHEN OTHERS THEN
+        RAISE EXCEPTION 'ERROR dentro de sp_load_order_payments_silver_layer(): %', SQLERRM;
+    END;
+
+
+    ----------------------------------------------------------------------
+    -- 5) Order Reviews
+    ----------------------------------------------------------------------
+    BEGIN
+        RAISE NOTICE '>> Ejecutando sp_load_order_reviews_silver_layer() ...';
+        t_reviews_start := clock_timestamp();
+
+        CALL sp_load_order_reviews_silver_layer();
+
+        t_reviews_end := clock_timestamp();
+        RAISE NOTICE '   ✓ Finalizado sp_load_order_reviews_silver_layer() (% ms)',
+            EXTRACT(MILLISECOND FROM t_reviews_end - t_reviews_start);
+
+    EXCEPTION WHEN OTHERS THEN
+        RAISE EXCEPTION 'ERROR dentro de sp_load_order_reviews_silver_layer(): %', SQLERRM;
+    END;
+
+
+    ----------------------------------------------------------------------
+    -- RESUMEN FINAL
     ----------------------------------------------------------------------
     t_total_end := clock_timestamp();
 
     RAISE NOTICE '=== RESUMEN DE TIEMPOS DEL PROCESO MAESTRO ===';
-    RAISE NOTICE 'Tiempo en productos:  % ms', EXTRACT(MILLISECOND FROM t_products_end - t_products_start);
-    RAISE NOTICE 'Tiempo en órdenes:    % ms', EXTRACT(MILLISECOND FROM t_orders_end - t_orders_start);
-    RAISE NOTICE 'TIEMPO TOTAL:         % ms', EXTRACT(MILLISECOND FROM t_total_end - t_total_start);
+    RAISE NOTICE 'Tiempo en productos:        % ms', EXTRACT(MILLISECOND FROM t_products_end - t_products_start);
+    RAISE NOTICE 'Tiempo en órdenes:          % ms', EXTRACT(MILLISECOND FROM t_orders_end - t_orders_start);
+    RAISE NOTICE 'Tiempo en order items:      % ms', EXTRACT(MILLISECOND FROM t_items_end - t_items_start);
+    RAISE NOTICE 'Tiempo en payments:         % ms', EXTRACT(MILLISECOND FROM t_payments_end - t_payments_start);
+    RAISE NOTICE 'Tiempo en reviews:          % ms', EXTRACT(MILLISECOND FROM t_reviews_end - t_reviews_start);
+    RAISE NOTICE '-----------------------------------------';
+    RAISE NOTICE 'TIEMPO TOTAL:               % ms', EXTRACT(MILLISECOND FROM t_total_end - t_total_start);
     RAISE NOTICE '=== FIN DEL PROCESO MAESTRO ===';
 
 EXCEPTION
@@ -425,4 +605,3 @@ EXCEPTION
 
 END;
 $$;
-

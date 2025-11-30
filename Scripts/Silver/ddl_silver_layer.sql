@@ -55,7 +55,7 @@ COMMENT ON COLUMN silver.olist_products.product_length_cm IS 'Product length in 
 COMMENT ON COLUMN silver.olist_products.product_height_cm IS 'Product height in centimeters';
 
 COMMENT ON COLUMN silver.olist_products.product_width_cm IS 'Product width in centimeters';
-COMMENT ON COLUMN silver.olist_products.product_created_date IS 'Product width in centimeters';
+COMMENT ON COLUMN silver.olist_products.product_created_date IS 'Fecha en la cual se insertó este registro en la capa plata';
 
 
 
@@ -94,6 +94,10 @@ COMMENT ON COLUMN silver.olist_orders.order_delivered_carrier_date IS 'Muestra l
 COMMENT ON COLUMN silver.olist_orders.order_delivered_customer_date IS 'Muestra la fecha en la cual la orden se le entregó al cliente';
 
 COMMENT ON COLUMN silver.olist_orders.order_estimated_delivery_date IS 'Muestra la fecha estimada de entrega que se le informó al cliente en el momento de la compra';
+
+COMMENT ON COLUMN silver.olist_orders.order_created_date IS 'La fecha en que se inserto este registro en la capa plata';
+
+
 
 
 --Creación de la tabla para los items de las órdenes derivada de bronze.olist_order_items
@@ -134,3 +138,69 @@ COMMENT ON COLUMN silver.olist_order_items.shipping_limit_date IS 'Muestra la fe
 COMMENT ON COLUMN silver.olist_order_items.price IS 'El precio del item';
 
 COMMENT ON COLUMN silver.olist_order_items.freight_value IS 'El valor del flete para ese item. Si una orden tiene más de un item, el precio del flete es dividido entre los items.';
+
+
+
+--creación de la tabla silver.olist_order_payments
+DROP TABLE IF EXISTS silver.olist_order_payments;
+
+-- Create order_payments table
+CREATE TABLE silver.olist_order_payments (
+    order_id VARCHAR(50),
+    payment_sequential INTEGER,
+    payment_type VARCHAR(50),
+    payment_installments INTEGER,
+    payment_value NUMERIC(10, 2),
+	payments_created_date TIMESTAMP DEFAULT CURRENT_DATE
+);
+
+-- Comentarios para documentación
+COMMENT ON TABLE silver.olist_order_payments IS 'Este conjunto de datos contiene información sobre las opciones de pago para las ordenes.';
+
+COMMENT ON COLUMN silver.olist_order_payments.order_id IS 'Identificador único de la orden';
+
+COMMENT ON COLUMN silver.olist_order_payments.payment_sequential IS 'Un cliente puede pagar una orden con más de un método de pago. Si lo hace, una secuencia será creada.';
+
+COMMENT ON COLUMN silver.olist_order_payments.payment_type IS 'Método de pago seleccionado por el cliente';
+
+COMMENT ON COLUMN silver.olist_order_payments.payment_installments IS 'El número de cuotas elegidas por el cliente';
+
+COMMENT ON COLUMN silver.olist_order_payments.payment_value IS 'El valor de la transacción';
+
+COMMENT ON COLUMN silver.olist_order_payments.payments_created_date IS 'Fecha de cuando se insertó este registro en la capa plata';
+
+
+--Creación de la tabla para las reseñas de las ordenes derivada de olist_order_reviews_dataset.csv
+-- Drop table if exists
+DROP TABLE IF EXISTS bronze.olist_order_reviews;
+
+-- Create order_reviews table
+CREATE TABLE silver.olist_order_reviews (
+    review_id VARCHAR(50),
+    order_id VARCHAR(50),
+    review_score INTEGER,
+    review_comment_title TEXT,
+    review_comment_message TEXT,
+	review_creation_date TIMESTAMP,
+	review_answer_timestamp TIMESTAMP,
+	review_created_date TIMESTAMP DEFAULT CURRENT_DATE
+);
+
+-- Comentarios para documentación
+COMMENT ON TABLE silver.olist_order_reviews IS 'Este conjunto de datos incluye los datos sobre las reseñas hechas por los clientes.';
+
+COMMENT ON COLUMN silver.olist_order_reviews.review_id IS 'Identificador único de la reseña';
+
+COMMENT ON COLUMN silver.olist_order_reviews.order_id IS 'Identificador único de la orden';
+
+COMMENT ON COLUMN silver.olist_order_reviews.review_score IS 'Nota que va del 1 al 5, otorgada por el cliente en una encuesta de satisfacción';
+
+COMMENT ON COLUMN silver.olist_order_reviews.review_comment_title IS 'Título del comentario de la reseña dejada por el cliente. En portugues';
+
+COMMENT ON COLUMN silver.olist_order_reviews.review_comment_message IS 'Mensaje del comentario de la reseña dejado por el cliente. En portugues';
+
+COMMENT ON COLUMN silver.olist_order_reviews.review_creation_date IS 'Muestra la fecha en la cual la encuesta de satisfacción fue enviada al cliente';
+
+COMMENT ON COLUMN silver.olist_order_reviews.review_answer_timestamp IS 'Muestra el tiempo en responder la encuesta de satisfacción';
+
+COMMENT ON COLUMN silver.olist_order_reviews.review_created_date IS 'Fecha de creación de cuándo se insertó este registro en la capa plata';

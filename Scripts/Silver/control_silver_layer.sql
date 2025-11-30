@@ -99,3 +99,46 @@ select freight_value from bronze.olist_order_items where freight_value is null;
 select order_id from bronze.olist_order_items where price<=0;
 select * from bronze.olist_order_items where freight_value<0;
 
+
+/*control para silver.olist_order_payments*/
+
+--controla nulos
+
+select * from bronze.olist_order_payments where order_id is null;
+select * from bronze.olist_order_payments where payment_sequential is null;
+select * from bronze.olist_order_payments where payment_type is null;
+select * from bronze.olist_order_payments where payment_installments is null;
+select * from bronze.olist_order_payments where payment_value is null;
+
+
+--control de valores menores a cero
+--hay valores cero debido a son vouchers
+select * from bronze.olist_order_payments where payment_value<=0;
+
+--incosistencia entre el precio de venta y el precio de flete, con el precio de pago para
+-- la orden cuyo order_id=0e556f5eafbf3eb399290101b183b10e
+--Esto puede explicarse porque el campo payment_installments es el número de cuotas del pago
+--y payment_sequential es el número de cuotas que ya pagó.
+--Así que puede ser una situación en la cual todavía no se completaron los pagos cuando se 
+--tomó la base de datos para analizarla.
+
+
+/*control para la tabla silver.olist_order_reviews*/
+
+--control de nulos
+select * from bronze.olist_order_reviews where review_id is null;
+select * from bronze.olist_order_reviews where order_id is null;
+select * from bronze.olist_order_reviews where review_score is null;
+select * from bronze.olist_order_reviews where review_creation_date is null;
+select * from bronze.olist_order_reviews where review_answer_timestamp is null;
+
+--que la fecha de la creación de la review no sea mayor a la fecha de respuesta
+select * from bronze.olist_order_reviews where review_creation_date>review_answer_timestamp;
+
+--que la puntuación no sea menor o igual a 0.
+select * from bronze.olist_order_reviews where review_score<=0;
+
+--controla que las columnas de cadena de caracteres no tengan espacio en blanco
+select * from bronze.olist_order_reviews where TRIM(review_comment_title)!=review_comment_title;
+select * from bronze.olist_order_reviews where TRIM(review_comment_message)!=review_comment_message;
+
