@@ -69,7 +69,7 @@ COMMENT ON COLUMN bronze.olist_geolocation.geolocation_state IS 'Nombre del esta
 -- Drop table if exists
 DROP TABLE IF EXISTS bronze.olist_order_items;
 
--- Create order_items table
+-- Create bronze.order_items table
 CREATE TABLE bronze.olist_order_items (
     order_id VARCHAR(50) NOT NULL,
     order_item_id INTEGER NOT NULL,

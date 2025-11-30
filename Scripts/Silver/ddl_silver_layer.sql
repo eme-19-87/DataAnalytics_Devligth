@@ -56,3 +56,81 @@ COMMENT ON COLUMN silver.olist_products.product_height_cm IS 'Product height in 
 
 COMMENT ON COLUMN silver.olist_products.product_width_cm IS 'Product width in centimeters';
 COMMENT ON COLUMN silver.olist_products.product_created_date IS 'Product width in centimeters';
+
+
+
+--Creación de la tabla para las ordenes derivada de bronze.olist_orders
+-- Drop table if exists
+DROP TABLE IF EXISTS silver.olist_orders;
+
+-- Create orders table
+CREATE TABLE silver.olist_orders (
+    order_id VARCHAR(50),
+    customer_id VARCHAR(50),
+    order_status VARCHAR(50),
+    order_purchase_timestamp TIMESTAMP,
+    order_approved_at TIMESTAMP,
+    order_delivered_carrier_date TIMESTAMP,
+    order_delivered_customer_date TIMESTAMP,
+    order_estimated_delivery_date TIMESTAMP,
+    order_created_date TIMESTAMP DEFAULT CURRENT_DATE
+);
+
+-- Comentarios para documentación
+COMMENT ON TABLE silver.olist_orders IS 'Este es el conjunto de datos central. Por cada orden se puede encontrar toda la otra información.';
+
+COMMENT ON COLUMN silver.olist_orders.order_id IS 'Identificador único de la orden';
+
+COMMENT ON COLUMN silver.olist_orders.customer_id IS 'Clave al conjunto de datos de los clientes. Cada orden tiene un único customer_id';
+
+COMMENT ON COLUMN silver.olist_orders.order_status IS 'Referencia el estado de la orden (entregado, embarcado, etc.)';
+
+COMMENT ON COLUMN silver.olist_orders.order_purchase_timestamp IS 'Muestra la fecha en que se compró';
+
+COMMENT ON COLUMN silver.olist_orders.order_approved_at IS 'Muestra la fecha en que se aprobó la compra';
+
+COMMENT ON COLUMN silver.olist_orders.order_delivered_carrier_date IS 'Muestra la fecha cuando fue manejado por la parte logística';
+
+COMMENT ON COLUMN silver.olist_orders.order_delivered_customer_date IS 'Muestra la fecha en la cual la orden se le entregó al cliente';
+
+COMMENT ON COLUMN silver.olist_orders.order_estimated_delivery_date IS 'Muestra la fecha estimada de entrega que se le informó al cliente en el momento de la compra';
+
+
+--Creación de la tabla para los items de las órdenes derivada de bronze.olist_order_items
+-- Drop table if exists
+DROP TABLE IF EXISTS silver.olist_order_items;
+
+-- Create silver.order_items table
+CREATE TABLE silver.olist_order_items (
+    order_id VARCHAR(50) NOT NULL,
+    order_item_id INTEGER NOT NULL,
+    product_id VARCHAR(50) NOT NULL,
+    seller_id VARCHAR(50) NOT NULL,
+    shipping_limit_date TIMESTAMP NOT NULL,
+    price NUMERIC(10, 2) NOT NULL,
+    freight_value NUMERIC(10, 2) NOT NULL
+);
+
+-- Comentarios para documentación
+COMMENT ON TABLE silver.olist_order_items IS 'Este conjunto de datos contiene los datos referidos a los items comprados dentro de cada orden. 
+Por ejemplo, la orden cuyo order_id = 00143d0f86d6fbd9f9b38ab440ac16f5 tiene 3 items (el mismo producto). Cada item tiene el flete calculado de acuerdo a sus medidas y peso. Para obtener el total del flete para cada orden sólo debe sumarse:
+
+El valor total para el producto es: 21.33 * 3 = 63.99
+El total para el flete es: 15.10 * 3 = 45.30
+
+El total de la orden (precio del producto + flete) : 45.30 + 63.99 = 109.29';
+
+COMMENT ON COLUMN silver.olist_order_items.order_id IS 
+'Identificador de orden único';
+
+COMMENT ON COLUMN silver.olist_order_items.order_item_id IS 'Número secuencial que sirve como número de identificación del item incluido en la misma orden';
+
+COMMENT ON COLUMN silver.olist_order_items.product_id IS 'Identificador único del producto';
+
+COMMENT ON COLUMN silver.olist_order_items.seller_id IS 'Identificador único del vendedor';
+
+COMMENT ON COLUMN silver.olist_order_items.shipping_limit_date IS 'Muestra la fecha límite de embarque que tiene el vendedor para manejar la orden a través de la parte logística.';
+
+COMMENT ON COLUMN silver.olist_order_items.price IS 'El precio del item';
+
+COMMENT ON COLUMN silver.olist_order_items.freight_value IS 'El valor del flete para ese item. Si una orden tiene más de un item, el precio del flete es dividido entre los items.';
