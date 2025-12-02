@@ -1,4 +1,4 @@
-CREATE OR REPLACE PROCEDURE sp_load_products_silver_layer()
+CREATE OR REPLACE PROCEDURE silver.sp_load_products_silver_layer()
 LANGUAGE plpgsql
 AS $$
 DECLARE
@@ -239,74 +239,113 @@ END;
 $$;
 
 
-CREATE OR REPLACE PROCEDURE sp_load_orderss_silver_layer()
+CREATE OR REPLACE PROCEDURE silver.sp_load_orderss_silver_layer()
 LANGUAGE plpgsql
 AS $$
+DECLARE
+    t_start       TIMESTAMP;
+    t_after_trunc TIMESTAMP;
+    t_after_insert TIMESTAMP;
 BEGIN
-    TRUNCATE TABLE silver.olist_orders;
-    INSERT INTO silver.olist_orders(
-        order_id,
-        customer_id,
-        order_status,
-        order_purchase_timestamp,
-        order_approved_at,
-        order_delivered_carrier_date,
-        order_delivered_customer_date,
-        order_estimated_delivery_date
-    )
-    SELECT
-        o.order_id,
-        o.customer_id,
-        o.order_status,
-        o.order_purchase_timestamp,
+    t_start := clock_timestamp();
+    RAISE NOTICE '📌 Inicio del procedimiento: %', t_start;
 
-        -----------------------------------------
-        -- 1) Corrección de order_approved_at
-        -----------------------------------------
-        CASE
-            WHEN o.order_approved_at IS NULL 
-                 AND o.order_status = 'delivered'
-            THEN o.order_purchase_timestamp + INTERVAL '1 day'
-            ELSE o.order_approved_at
-        END AS order_approved_at_fixed,
+    BEGIN
+        ---------------------------------------------------------------------
+        -- TRUNCATE
+        ---------------------------------------------------------------------
+        TRUNCATE TABLE silver.olist_orders;
+        t_after_trunc := clock_timestamp();
 
-        -----------------------------------------
-        -- 2) Corrección de order_delivered_carrier_date
-        -----------------------------------------
-        CASE
-            WHEN (o.order_purchase_timestamp > o.order_delivered_carrier_date 
-                  OR o.order_delivered_carrier_date IS NULL)
-                 AND o.order_status = 'delivered'
-            THEN 
-                -- usa el campo aprobado corregido
-                COALESCE(o.order_approved_at,
-                         o.order_purchase_timestamp + INTERVAL '1 day')
-                + INTERVAL '1 day'
-            ELSE o.order_delivered_carrier_date
-        END AS carrier_fixed,
+        RAISE NOTICE '⏱ Tiempo TRUNCATE: % segundos',
+            EXTRACT(EPOCH FROM (t_after_trunc - t_start));
 
-        -----------------------------------------
-        -- 3) Corrección de order_delivered_customer_date
-        -----------------------------------------
-        CASE
-            WHEN (o.order_purchase_timestamp > o.order_delivered_customer_date
-                  OR o.order_delivered_customer_date IS NULL)
-                 AND o.order_status = 'delivered'
-            THEN 
-                COALESCE(o.order_delivered_carrier_date,
-                         o.order_approved_at,
-                         o.order_purchase_timestamp + INTERVAL '1 day')
-                + INTERVAL '1 day'
-            ELSE o.order_delivered_customer_date
-        END AS customer_fixed,
+        ---------------------------------------------------------------------
+        -- INSERT CON REGLAS Y CTE
+        ---------------------------------------------------------------------
+        WITH 
+        cte_base AS (
+            SELECT
+                order_id,
+                customer_id,
+                order_status,
+                order_purchase_timestamp,
+                order_approved_at,
+                order_delivered_carrier_date,
+                order_delivered_customer_date,
+                order_estimated_delivery_date
+            FROM bronze.olist_orders
+        ),
+        cte_approved AS (
+            SELECT
+                *,
+                CASE
+                    WHEN order_approved_at IS NULL 
+                         AND order_status = 'delivered'
+                    THEN order_purchase_timestamp + INTERVAL '1 day'
+                    ELSE order_approved_at
+                END AS approved_fixed
+            FROM cte_base
+        ),
+        cte_carrier AS (
+            SELECT
+                *,
+                CASE
+                    WHEN (order_delivered_carrier_date < approved_fixed OR order_delivered_carrier_date IS NULL) AND order_status='delivered'
+                    THEN approved_fixed + INTERVAL '1 day'
+                    ELSE order_delivered_carrier_date
+                END AS carrier_fixed
+            FROM cte_approved
+        ),
+        cte_customer AS (
+            SELECT
+                *,
+                CASE
+                    WHEN (order_delivered_customer_date < carrier_fixed OR order_delivered_customer_date IS NULL) AND order_status='delivered'
+                    THEN carrier_fixed + INTERVAL '1 day'
+                    ELSE order_delivered_customer_date
+                END AS customer_fixed
+            FROM cte_carrier
+        )
+        INSERT INTO silver.olist_orders(
+            order_id,
+            customer_id,
+            order_status,
+            order_purchase_timestamp,
+            order_approved_at,
+            order_delivered_carrier_date,
+            order_delivered_customer_date,
+            order_estimated_delivery_date
+        )
+        SELECT
+            order_id,
+            customer_id,
+            order_status,
+            order_purchase_timestamp,
+            approved_fixed,
+            carrier_fixed,
+            customer_fixed,
+            order_estimated_delivery_date
+        FROM cte_customer;
 
-        o.order_estimated_delivery_date
-    FROM bronze.olist_orders o;
+        t_after_insert := clock_timestamp();
+
+        RAISE NOTICE '⏱ Tiempo INSERT: % segundos',
+            EXTRACT(EPOCH FROM (t_after_insert - t_after_trunc));
+
+        RAISE NOTICE '⏱⏱ Tiempo TOTAL procedimiento: % segundos',
+            EXTRACT(EPOCH FROM (t_after_insert - t_start));
+
+    EXCEPTION WHEN OTHERS THEN
+        RAISE EXCEPTION '❌ Error en sp_load_orderss_silver_layer: %', SQLERRM;
+    END;
 
 END;
 $$;
 
-CREATE OR REPLACE PROCEDURE sp_load_order_items_silver_layer()
+
+
+CREATE OR REPLACE PROCEDURE silver.sp_load_order_items_silver_layer()
 LANGUAGE plpgsql
 AS $$
 BEGIN
@@ -337,7 +376,7 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE PROCEDURE sp_load_payments_silver_layer()
+CREATE OR REPLACE PROCEDURE silver.sp_load_payments_silver_layer()
 LANGUAGE plpgsql
 AS $$
 DECLARE
@@ -405,18 +444,181 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE PROCEDURE sp_load_order_reviews_silver_layer()
+
+CREATE OR REPLACE PROCEDURE silver.sp_load_sellers_silver_layer()
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    t_start           TIMESTAMP;
+    t_truncate_start  TIMESTAMP;
+    t_insert_start    TIMESTAMP;
+    t_end             TIMESTAMP;
+
+    dur_truncate      INTERVAL;
+    dur_insert        INTERVAL;
+    dur_total         INTERVAL;
+BEGIN
+    ---------------------------------------------------------------------
+    -- Inicio medición total
+    ---------------------------------------------------------------------
+    t_start := clock_timestamp();
+
+    ---------------------------------------------------------------------
+    -- TRUNCATE + medición
+    ---------------------------------------------------------------------
+    t_truncate_start := clock_timestamp();
+
+    TRUNCATE TABLE silver.olist_sellers;
+
+    dur_truncate := clock_timestamp() - t_truncate_start;
+
+    RAISE NOTICE 'Tiempo TRUNCATE: %', dur_truncate;
+
+    ---------------------------------------------------------------------
+    -- INSERT + medición
+    ---------------------------------------------------------------------
+    t_insert_start := clock_timestamp();
+
+    
+    WITH cleaned AS (
+        SELECT 
+            seller_id,
+            seller_zip_code_prefix,
+            seller_state,
+            -- Optimizamos: convertimos una sola vez a lower
+            LOWER(TRIM(seller_city)) AS city_lower,
+            TRIM(seller_city) AS original_city
+        FROM bronze.olist_sellers
+    ),
+    transformed AS (
+        SELECT
+            seller_id,
+            seller_zip_code_prefix,
+            CASE
+                WHEN city_lower = 'brejao' THEN 'brejão'
+                WHEN city_lower IN ('vendas@creditparts.com.br') THEN 'maringa'
+                WHEN city_lower IN ('andira-pr') THEN 'barra do jacare'
+                WHEN city_lower IN ('belo horizont') THEN 'belo horizonte'
+                WHEN city_lower IN ('portoferreira') THEN 'porto ferreira'
+                WHEN city_lower IN ('paiçandu','paincandu') THEN 'brejão'
+                WHEN city_lower IN ('bahia') THEN 'paulo afonso'
+                WHEN city_lower IN ('santa catarina') THEN 'palhoca'
+                WHEN city_lower IN ('sao  jose dos pinhais','sao jose dos pinhas') THEN 'sao jose dos pinhais'
+                WHEN city_lower IN ('vicente de carvalho') THEN 'guaruja'
+                WHEN city_lower IN ('ferraz de  vasconcelos') THEN 'ferraz de vasconcelos'
+                WHEN city_lower IN ('lages - sc') THEN 'lages'
+                WHEN city_lower IN ('balenario camboriu') THEN 'balneario camboriu'
+                WHEN city_lower IN ('auriflama/sp') THEN 'auriflama'
+                WHEN city_lower IN ('sao paulo / sao paulo','sao paulo sp','sao paluo',
+                                    'sao paulop','sao paulo - sp','sao pauo',
+                                    'sp / sp','sao  paulo','são paulo') THEN 'são paulo'
+                WHEN city_lower = 'cascavael' THEN 'cascavel'
+                WHEN city_lower IN ('santa barbara d´oeste','santa barbara d oeste') THEN 'santa barbara d''oeste'
+                WHEN city_lower = 'novo hamburgo, rio grande do sul, brasil' THEN 'novo hamburgo'
+                WHEN city_lower = 'floranopolis' THEN 'florianopolis'
+                WHEN city_lower = 'cariacica / es' THEN 'cariacica'
+                WHEN city_lower IN ('sao miguel do oeste','sao miguel d''oeste') THEN 'sao miguel do oeste'
+                WHEN city_lower IN ('brasilia df','aguas claras df') THEN 'brasilia'
+                WHEN city_lower IN ('mogi das cruses','mogi das cruzes / sp') THEN 'mogi das cruzes'
+                WHEN city_lower IN ('sbc/sp','sbc','sao bernardo do capo',
+                                    'maua/sao paulo','ao bernardo do campo',
+                                    'sao bernardo do campo') THEN 'sao bernardo do campo'
+                WHEN city_lower = 'arraial d''ajuda (porto seguro)' THEN 'arraial d''ajuda'
+                WHEN city_lower IN ('santo andre/sao paulo','sando andre') THEN 'santo andre'
+                WHEN city_lower IN ('s jose do rio preto','sao jose do rio pret') THEN 'sao jose do rio preto'
+                WHEN city_lower = 'juzeiro do norte' THEN 'juazeiro do norte'
+                WHEN city_lower IN ('rio de janeiro \\rio de janeiro','rio de janeiro \rio de janeiro',
+                                    'rio de janeiro / rio de janeiro','04482255') THEN 'rio de janeiro'
+                WHEN city_lower = 'angra dos reis rj' THEN 'angra dos reis'
+                WHEN city_lower = 'pinhais/pr' THEN 'pinhais'
+                WHEN city_lower = 'castro pires' THEN 'teofilo otoni'
+                WHEN city_lower = 'garulhos' THEN 'guarulhos'
+                WHEN city_lower IN ('ribeirao preto / sao paulo','robeirao preto',
+                                    'ribeirao pretp','riberao preto') THEN 'ribeirao preto'
+                WHEN city_lower = 'ji parana' THEN 'ji-parana'
+                WHEN city_lower = 'carapicuiba / sao paulo' THEN 'carapicuiba'
+                WHEN city_lower = 'centro' THEN 'para de minas'
+                WHEN city_lower = 'minas gerais' THEN 'campo do meio'
+                WHEN city_lower = 'scao jose do rio pardo' THEN 'sao jose do rio pardo'
+                WHEN city_lower = 'tabao da serra' THEN 'taboao da serra'
+                WHEN city_lower = 'jacarei / sao paulo' THEN 'jacarei'
+                WHEN city_lower = 'barbacena/ minas gerais' THEN 'barbacena'
+                WHEN city_lower = 'sao sebastiao da grama/sp' THEN 'sao sebastiao da grama'
+                ELSE original_city
+            END AS "seller_city",
+			seller_state
+        FROM cleaned
+    )
+	INSERT INTO silver.olist_sellers(seller_id, seller_zip_code_prefix, seller_city, seller_state)
+    SELECT * FROM transformed;
+
+    dur_insert := clock_timestamp() - t_insert_start;
+
+    RAISE NOTICE 'Tiempo INSERT: %', dur_insert;
+
+    ---------------------------------------------------------------------
+    -- Fin total
+    ---------------------------------------------------------------------
+    t_end := clock_timestamp();
+    dur_total := t_end - t_start;
+
+    RAISE NOTICE 'Tiempo TOTAL del procedimiento: %', dur_total;
+
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE WARNING 'Error en sp_load_silver_olist_sellers: %', SQLERRM;
+        RAISE;
+END;
+$$;
+
+
+CREATE OR REPLACE PROCEDURE silver.sp_load_order_reviews_silver_layer()
 LANGUAGE plpgsql
 AS $$
 DECLARE
     t_start TIMESTAMP;
     t_end   TIMESTAMP;
 
+    median_review_score NUMERIC;
 BEGIN
     RAISE NOTICE '=== INICIO: sp_load_order_reviews_silver_layer() ===';
     t_start := clock_timestamp();
 
     BEGIN
+        ----------------------------------------------------------------------
+        -- CALCULAR LA MEDIANA DE review_score
+        ----------------------------------------------------------------------
+      WITH ordered AS (
+    SELECT review_score,
+           ROW_NUMBER() OVER (ORDER BY review_score) AS rn,
+           COUNT(*) OVER () AS total_count
+    FROM bronze.olist_order_reviews
+    WHERE review_score IS NOT NULL
+),
+med AS (
+    SELECT
+        CASE
+            WHEN total_count % 2 = 1 THEN
+                -- Impar → valor central
+                (SELECT review_score
+                 FROM ordered
+                 WHERE rn = (total_count + 1) / 2)
+
+            ELSE
+                -- Par → promedio de los dos centrales
+                (SELECT AVG(review_score)::NUMERIC
+                 FROM ordered
+                 WHERE rn IN (total_count/2, total_count/2 + 1))
+        END AS median_value
+    FROM ordered
+    LIMIT 1  -- evita repetir el CASE N veces
+)
+SELECT median_value INTO median_review_score
+FROM med;
+
+
+        RAISE NOTICE '>> Mediana calculada de review_score = %', median_review_score;
+
         ----------------------------------------------------------------------
         -- TRUNCATE
         ----------------------------------------------------------------------
@@ -431,6 +633,7 @@ BEGIN
         INSERT INTO silver.olist_order_reviews (
             review_id,
             order_id,
+            review_score,
             review_comment_title,
             review_comment_message,
             review_creation_date,
@@ -439,8 +642,9 @@ BEGIN
         SELECT
             review_id,
             order_id,
-            TRIM(COALESCE(review_comment_title, 'n/a'))      AS review_comment_title,
-            TRIM(COALESCE(review_comment_message, 'n/a'))    AS review_comment_message,
+            COALESCE(review_score, median_review_score)           AS review_score,
+            TRIM(COALESCE(review_comment_title, 'n/a'))           AS review_comment_title,
+            TRIM(COALESCE(review_comment_message, 'n/a'))         AS review_comment_message,
             review_creation_date,
             review_answer_timestamp
         FROM bronze.olist_order_reviews;
@@ -462,7 +666,213 @@ END;
 $$;
 
 
-CREATE OR REPLACE PROCEDURE sp_master_load_silver_layer()
+CREATE OR REPLACE PROCEDURE silver.sp_load_customers_silver_layer()
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_start_total      TIMESTAMP;
+    v_end_total        TIMESTAMP;
+    v_start_truncate   TIMESTAMP;
+    v_end_truncate     TIMESTAMP;
+    v_start_insert     TIMESTAMP;
+    v_end_insert       TIMESTAMP;
+BEGIN
+    -- Tiempo inicio total
+    v_start_total := clock_timestamp();
+
+    BEGIN
+        --------------------------------------------------------------------
+        -- TRUNCATE TABLE
+        --------------------------------------------------------------------
+        v_start_truncate := clock_timestamp();
+
+        TRUNCATE TABLE silver.olist_customers RESTART IDENTITY;
+
+        v_end_truncate := clock_timestamp();
+
+        --------------------------------------------------------------------
+        -- INSERT DATA
+        --------------------------------------------------------------------
+        v_start_insert := clock_timestamp();
+
+        INSERT INTO silver.olist_customers(
+            customer_id,
+            customer_unique_id,
+            customer_zip_code_prefix,
+            customer_city,
+            customer_state
+        )
+        SELECT 
+            customer_id,
+            customer_unique_id,
+            customer_zip_code_prefix,
+
+            CASE
+                WHEN LOWER(customer_city) IN ('nucleo residencial pilar') THEN TRIM('jaguarari')
+                WHEN LOWER(customer_city) IN ('mussurepe') THEN TRIM('campos dos goytacazes')
+                WHEN LOWER(customer_city) IN ('caldas do jorro') THEN TRIM('tucano')
+                WHEN LOWER(customer_city) IN ('taboquinhas') THEN TRIM('itacare')
+                WHEN LOWER(customer_city) IN ('piacu') THEN TRIM('muniz freire')
+                WHEN LOWER(customer_city) IN ('ajapi') THEN TRIM('rio claro')
+                WHEN LOWER(customer_city) IN ('guariroba') THEN TRIM('taquaritinga')
+                WHEN LOWER(customer_city) IN ('colonia jordaozinho') THEN TRIM('vitoria')
+                ELSE TRIM(customer_city)
+            END AS customer_city,
+            TRIM(customer_state)
+        FROM bronze.olist_customers;
+
+        v_end_insert := clock_timestamp();
+
+    EXCEPTION
+        WHEN OTHERS THEN
+            RAISE EXCEPTION 'Error ejecutando sp_load_olist_customers(): %', SQLERRM;
+    END;
+
+    -- Tiempo fin total
+    v_end_total := clock_timestamp();
+
+    ------------------------------------------------------------------------
+    -- LOG DE TIEMPOS
+    ------------------------------------------------------------------------
+    RAISE NOTICE 'Tiempo TRUNCATE: % segundos', EXTRACT(EPOCH FROM (v_end_truncate - v_start_truncate));
+    RAISE NOTICE 'Tiempo INSERT: % segundos',   EXTRACT(EPOCH FROM (v_end_insert - v_start_insert));
+    RAISE NOTICE 'Tiempo TOTAL: % segundos',    EXTRACT(EPOCH FROM (v_end_total - v_start_total));
+
+END;
+$$;
+
+CREATE OR REPLACE PROCEDURE silver.sp_load_geolocation_silver_layer()
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_start_total      TIMESTAMP;
+    v_end_total        TIMESTAMP;
+    v_start_truncate   TIMESTAMP;
+    v_end_truncate     TIMESTAMP;
+    v_start_insert     TIMESTAMP;
+    v_end_insert       TIMESTAMP;
+BEGIN
+    -- Inicio del tiempo total
+    v_start_total := clock_timestamp();
+
+    BEGIN
+        --------------------------------------------------------------------
+        -- TRUNCATE TABLE
+        --------------------------------------------------------------------
+        v_start_truncate := clock_timestamp();
+
+        TRUNCATE TABLE silver.olist_geolocation RESTART IDENTITY;
+
+        v_end_truncate := clock_timestamp();
+
+        --------------------------------------------------------------------
+        -- INSERT DATA WITH AGGREGATION
+        --------------------------------------------------------------------
+        v_start_insert := clock_timestamp();
+
+        INSERT INTO silver.olist_geolocation (
+            geolocation_zip_code_prefix,
+            geolocation_lat,
+            geolocation_lng,
+            geolocation_city,
+            geolocation_state
+        )
+        SELECT
+            geolocation_zip_code_prefix,
+            AVG(geolocation_lat)  AS avg_latitude,
+            AVG(geolocation_lng)  AS avg_longitude,
+            MIN(geolocation_city) AS city,
+            MIN(geolocation_state) AS state
+        FROM bronze.olist_geolocation 
+        GROUP BY geolocation_zip_code_prefix
+        ORDER BY geolocation_zip_code_prefix;
+
+        v_end_insert := clock_timestamp();
+
+    EXCEPTION
+        WHEN OTHERS THEN
+            RAISE EXCEPTION 'Error ejecutando silver.sp_load_geolocation_silver_layer(): %', SQLERRM;
+    END;
+
+    -- Fin del tiempo total
+    v_end_total := clock_timestamp();
+
+    ------------------------------------------------------------------------
+    -- LOG DE TIEMPOS
+    ------------------------------------------------------------------------
+    RAISE NOTICE 'Tiempo TRUNCATE: % segundos', EXTRACT(EPOCH FROM (v_end_truncate - v_start_truncate));
+    RAISE NOTICE 'Tiempo INSERT: % segundos',   EXTRACT(EPOCH FROM (v_end_insert - v_start_insert));
+    RAISE NOTICE 'Tiempo TOTAL: % segundos',    EXTRACT(EPOCH FROM (v_end_total - v_start_total));
+
+END;
+$$;
+
+
+CREATE OR REPLACE PROCEDURE silver.sp_load_olist_category_translation_silver_layer()
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    inicio_total        TIMESTAMP;
+    inicio_truncate     TIMESTAMP;
+    fin_truncate        TIMESTAMP;
+    inicio_insert       TIMESTAMP;
+    fin_insert          TIMESTAMP;
+BEGIN
+    -- Tiempo inicial del procedimiento
+    inicio_total := clock_timestamp();
+
+    BEGIN
+        RAISE NOTICE '=== INICIO DEL PROCEDIMIENTO === %', inicio_total;
+
+        -----------------------------------------------
+        -- TRUNCATE (si no lo necesitas, elimínalo)
+        -----------------------------------------------
+        inicio_truncate := clock_timestamp();
+        RAISE NOTICE 'Inicio TRUNCATE: %', inicio_truncate;
+
+        TRUNCATE TABLE silver.olist_product_category_name_translation;
+
+        fin_truncate := clock_timestamp();
+        RAISE NOTICE 'Fin TRUNCATE: %', fin_truncate;
+        RAISE NOTICE 'Tiempo TRUNCATE: % ms', EXTRACT(MILLISECOND FROM (fin_truncate - inicio_truncate));
+
+        -----------------------------------------------
+        -- INSERT
+        -----------------------------------------------
+        inicio_insert := clock_timestamp();
+        RAISE NOTICE 'Inicio INSERT: %', inicio_insert;
+
+        INSERT INTO silver.olist_product_category_name_translation (
+            product_category_name,
+            product_category_name_english
+        )
+        SELECT 
+            product_category_name,
+            product_category_name_english
+        FROM bronze.olist_product_category_name_translation;
+
+        fin_insert := clock_timestamp();
+        RAISE NOTICE 'Fin INSERT: %', fin_insert;
+        RAISE NOTICE 'Tiempo INSERT: % ms', EXTRACT(MILLISECOND FROM (fin_insert - inicio_insert));
+
+        -----------------------------------------------
+        -- Fin total
+        -----------------------------------------------
+        RAISE NOTICE '=== FIN DEL PROCEDIMIENTO === %', clock_timestamp();
+        RAISE NOTICE 'Tiempo TOTAL del procedimiento: % ms',
+            EXTRACT(MILLISECOND FROM (clock_timestamp() - inicio_total));
+
+    EXCEPTION WHEN OTHERS THEN
+        RAISE NOTICE 'ERROR: %', SQLERRM;
+        RAISE NOTICE 'El procedimiento falló en el tiempo: %', clock_timestamp();
+        RAISE;
+    END;
+END;
+$$;
+
+
+
+CREATE OR REPLACE PROCEDURE silver.sp_master_load_silver_layer()
 LANGUAGE plpgsql
 AS $$
 DECLARE
@@ -489,6 +899,22 @@ DECLARE
     -- Tiempos order_reviews  << NUEVO
     t_reviews_start TIMESTAMP;
     t_reviews_end   TIMESTAMP;
+
+	--tiempo para los vendedores
+	t_sellers_start TIMESTAMP;
+    t_sellers_end   TIMESTAMP;
+
+	--tiempo para los clientes
+	t_customers_start TIMESTAMP;
+    t_customers_end   TIMESTAMP;
+
+	--tiempo para la geolocalización
+	t_geo_start TIMESTAMP;
+    t_geo_end   TIMESTAMP;
+
+	--tiempo para la traducción de las categorías
+	t_trans_start TIMESTAMP;
+    t_trans_end   TIMESTAMP;
 BEGIN
     RAISE NOTICE '=== INICIO DEL PROCESO MAESTRO PARA CARGAR SILVER LAYERS ===';
     t_total_start := clock_timestamp();
@@ -501,7 +927,7 @@ BEGIN
         RAISE NOTICE '>> Ejecutando sp_load_products_silver_layer() ...';
         t_products_start := clock_timestamp();
 
-        CALL sp_load_products_silver_layer();
+        CALL silver.sp_load_products_silver_layer();
 
         t_products_end := clock_timestamp();
         RAISE NOTICE '   ✓ Finalizado sp_load_products_silver_layer() (% ms)',
@@ -519,7 +945,7 @@ BEGIN
         RAISE NOTICE '>> Ejecutando sp_load_orderss_silver_layer() ...';
         t_orders_start := clock_timestamp();
 
-        CALL sp_load_orderss_silver_layer();
+        CALL silver.sp_load_orderss_silver_layer();
 
         t_orders_end := clock_timestamp();
         RAISE NOTICE '   ✓ Finalizado sp_load_orderss_silver_layer() (% ms)',
@@ -537,7 +963,7 @@ BEGIN
         RAISE NOTICE '>> Ejecutando sp_load_order_items_silver_layer() ...';
         t_items_start := clock_timestamp();
 
-        CALL sp_load_order_items_silver_layer();
+        CALL silver.sp_load_order_items_silver_layer();
 
         t_items_end := clock_timestamp();
         RAISE NOTICE '   ✓ Finalizado sp_load_order_items_silver_layer() (% ms)',
@@ -555,7 +981,7 @@ BEGIN
         RAISE NOTICE '>> Ejecutando sp_load_order_payments_silver_layer() ...';
         t_payments_start := clock_timestamp();
 
-        CALL sp_load_payments_silver_layer();
+        CALL silver.sp_load_payments_silver_layer();
 
         t_payments_end := clock_timestamp();
         RAISE NOTICE '   ✓ Finalizado sp_load_order_payments_silver_layer() (% ms)',
@@ -573,7 +999,7 @@ BEGIN
         RAISE NOTICE '>> Ejecutando sp_load_order_reviews_silver_layer() ...';
         t_reviews_start := clock_timestamp();
 
-        CALL sp_load_order_reviews_silver_layer();
+        CALL silver.sp_load_order_reviews_silver_layer();
 
         t_reviews_end := clock_timestamp();
         RAISE NOTICE '   ✓ Finalizado sp_load_order_reviews_silver_layer() (% ms)',
@@ -583,7 +1009,75 @@ BEGIN
         RAISE EXCEPTION 'ERROR dentro de sp_load_order_reviews_silver_layer(): %', SQLERRM;
     END;
 
+	 ----------------------------------------------------------------------
+    -- 6) Sellers
+    ----------------------------------------------------------------------
+    BEGIN
+        RAISE NOTICE '>> Ejecutando sp_load_sellers_silver_layer()...';
+        t_sellers_start := clock_timestamp();
 
+        CALL silver.sp_load_sellers_silver_layer();
+
+        t_sellers_end := clock_timestamp();
+        RAISE NOTICE '   ✓ Finalizado sp_load_sellers_silver_layer (% ms)',
+            EXTRACT(MILLISECOND FROM t_sellers_end - t_sellers_start);
+
+    EXCEPTION WHEN OTHERS THEN
+        RAISE EXCEPTION 'ERROR dentro de sp_load_sellers_silver_layer(): %', SQLERRM;
+    END;
+
+	 ----------------------------------------------------------------------
+    -- 7) Customers
+    ----------------------------------------------------------------------
+    BEGIN
+        RAISE NOTICE '>> Ejecutando silver.sp_load_customers_silver_layer()...';
+        t_customers_start := clock_timestamp();
+
+        CALL silver.sp_load_customers_silver_layer();
+
+        t_customers_end := clock_timestamp();
+        RAISE NOTICE '   ✓ Finalizado silver.sp_load_customers_silver_layer()(% ms)',
+            EXTRACT(MILLISECOND FROM t_customers_end - t_customers_start);
+
+    EXCEPTION WHEN OTHERS THEN
+        RAISE EXCEPTION 'ERROR dentro de silver.sp_load_customers_silver_layer(): %', SQLERRM;
+    END;
+
+	 ----------------------------------------------------------------------
+    -- 8) Geolocation
+    ----------------------------------------------------------------------
+    BEGIN
+        RAISE NOTICE '>> Ejecutando silver.sp_load_geolocation_silver_layer()...';
+        t_geo_start := clock_timestamp();
+
+        CALL silver.sp_load_geolocation_silver_layer();
+
+        t_geo_end := clock_timestamp();
+        RAISE NOTICE '   ✓ Finalizado silver.sp_load_geolocation_silver_layer()(% ms)',
+            EXTRACT(MILLISECOND FROM t_geo_end - t_geo_start);
+
+    EXCEPTION WHEN OTHERS THEN
+        RAISE EXCEPTION 'ERROR dentro de silver.sp_load_geolocation_silver_layer(): %', SQLERRM;
+    END;
+
+	 ----------------------------------------------------------------------
+    -- 9) Category Translation
+    ----------------------------------------------------------------------
+    BEGIN
+        RAISE NOTICE '>> Ejecutando sp_load_olist_category_translation_silver_layer()()';
+        t_trans_start := clock_timestamp();
+
+        CALL silver.sp_load_olist_category_translation_silver_layer();
+
+        t_trans_end := clock_timestamp();
+        RAISE NOTICE '   ✓ Finalizado sp_load_olist_category_translation_silver_layer()(% ms)',
+            EXTRACT(MILLISECOND FROM t_trans_end - t_trans_start);
+
+    EXCEPTION WHEN OTHERS THEN
+        RAISE EXCEPTION 'ERROR dentro de silver.sp_cargar_olist_category_translation_silver_layer(): %', SQLERRM;
+    END;
+    
+	
     ----------------------------------------------------------------------
     -- RESUMEN FINAL
     ----------------------------------------------------------------------
@@ -595,6 +1089,10 @@ BEGIN
     RAISE NOTICE 'Tiempo en order items:      % ms', EXTRACT(MILLISECOND FROM t_items_end - t_items_start);
     RAISE NOTICE 'Tiempo en payments:         % ms', EXTRACT(MILLISECOND FROM t_payments_end - t_payments_start);
     RAISE NOTICE 'Tiempo en reviews:          % ms', EXTRACT(MILLISECOND FROM t_reviews_end - t_reviews_start);
+	RAISE NOTICE 'Tiempo en sellers:          % ms', EXTRACT(MILLISECOND FROM t_sellers_end - t_sellers_start);
+	RAISE NOTICE 'Tiempo en customers:        % ms', EXTRACT(MILLISECOND FROM t_customers_end - t_customers_start);
+	RAISE NOTICE 'Tiempo en geolocation:      % ms', EXTRACT(MILLISECOND FROM t_geo_end - t_geo_start);
+	RAISE NOTICE 'Tiempo en geolocation:      % ms', EXTRACT(MILLISECOND FROM t_trans_end - t_trans_start);
     RAISE NOTICE '-----------------------------------------';
     RAISE NOTICE 'TIEMPO TOTAL:               % ms', EXTRACT(MILLISECOND FROM t_total_end - t_total_start);
     RAISE NOTICE '=== FIN DEL PROCESO MAESTRO ===';
@@ -605,3 +1103,4 @@ EXCEPTION
 
 END;
 $$;
+

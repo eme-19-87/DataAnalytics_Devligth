@@ -172,7 +172,7 @@ COMMENT ON COLUMN silver.olist_order_payments.payments_created_date IS 'Fecha de
 
 --Creación de la tabla para las reseñas de las ordenes derivada de olist_order_reviews_dataset.csv
 -- Drop table if exists
-DROP TABLE IF EXISTS bronze.olist_order_reviews;
+DROP TABLE IF EXISTS silver.olist_order_reviews;
 
 -- Create order_reviews table
 CREATE TABLE silver.olist_order_reviews (
@@ -204,3 +204,88 @@ COMMENT ON COLUMN silver.olist_order_reviews.review_creation_date IS 'Muestra la
 COMMENT ON COLUMN silver.olist_order_reviews.review_answer_timestamp IS 'Muestra el tiempo en responder la encuesta de satisfacción';
 
 COMMENT ON COLUMN silver.olist_order_reviews.review_created_date IS 'Fecha de creación de cuándo se insertó este registro en la capa plata';
+
+--creación de la tabla silver.olist_sellers
+
+DROP TABLE IF EXISTS silver.olist_sellers;
+-- Create sellers table
+CREATE TABLE silver.olist_sellers (
+    seller_id VARCHAR(50),
+    seller_zip_code_prefix VARCHAR(10),
+    seller_city VARCHAR(100),
+    seller_state VARCHAR(2),
+	seller_created_date TIMESTAMP DEFAULT CURRENT_DATE
+);
+
+-- Comentarios para documentación
+COMMENT ON TABLE silver.olist_sellers IS 'Seller information including geographic location details';
+
+COMMENT ON COLUMN silver.olist_sellers.seller_id IS 'Unique identifier for each seller, 32-character hash';
+
+COMMENT ON COLUMN silver.olist_sellers.seller_zip_code_prefix IS 'First digits of Brazilian zip code where seller is located';
+
+COMMENT ON COLUMN silver.olist_sellers.seller_city IS 'City where the seller is based';
+
+COMMENT ON COLUMN silver.olist_sellers.seller_state IS 'Brazilian state where the seller is located (SP, RJ, MG, etc.)';
+
+COMMENT ON COLUMN silver.olist_sellers.seller_created_date IS 'Fecha de creación de cuándo se insertó este registro en la capa plata';
+
+
+/*creación de la tabla silver.olist_customers*/
+
+-- Elimina la tabla si ya existe
+DROP TABLE IF EXISTS silver.olist_customers;
+
+-- Crea la tabla bronze.olist_customers derivada de olist_customers_dataset.csv
+CREATE TABLE silver.olist_customers (
+    customer_id VARCHAR(50),
+    customer_unique_id VARCHAR(50),
+    customer_zip_code_prefix VARCHAR(30),
+    customer_city VARCHAR(100),
+    customer_state VARCHAR(2),
+	customer_created_date TIMESTAMP DEFAULT CURRENT_DATE
+	
+);
+
+-- Comentarios para documentación de la tabla de clientes
+COMMENT ON TABLE silver.olist_customers IS 'Este conjunto de datos contiene la información sobre los clientes y sus localizaciones. Se emplea para identificar clientes únicos en el conjunto de datos olist_orders_dataset para encontrar la localización para la entrega de las órdenes.
+El sistema asigna a cada orden un único customer_id. Esto significa que el mismo cliente obtendrá diferentes ids para diferentes órdenes. El propósito de tener un customer_unique_id en el conjunto de datos es para permitir identificar clientes que han realizado “recompras” en la tienda.';
+
+COMMENT ON COLUMN silver.olist_customers.customer_id IS 'Clave del conjunto de datos olist_orders_dataset. Cada orden tiene un único customer_id';
+
+COMMENT ON COLUMN silver.olist_customers.customer_unique_id IS 'Identificador único del cliente';
+
+COMMENT ON COLUMN silver.olist_customers.customer_zip_code_prefix IS 'Los primeros cinco dígitos del código zip del consumidor';
+COMMENT ON COLUMN silver.olist_customers.customer_city IS 'Nombre de la ciudad del cliente';
+COMMENT ON COLUMN silver.olist_customers.customer_state IS 'Estado del cliente';
+COMMENT ON COLUMN silver.olist_customers.customer_created_date IS 'La fecha en la que se creo el registro';
+
+--Creación de la tabla de geolocalización derivada de bronze.olist_geolocation
+-- Drop table if exists
+DROP TABLE IF EXISTS silver.olist_geolocation;
+
+-- Create geolocation table
+CREATE TABLE silver.olist_geolocation (
+    geolocation_zip_code_prefix VARCHAR(30),
+    geolocation_lat NUMERIC(20, 16),
+    geolocation_lng NUMERIC(20, 16),
+    geolocation_city VARCHAR(50),
+    geolocation_state VARCHAR(2),
+	geolocation_created_date TIMESTAMP DEFAULT CURRENT_DATE
+);
+
+-- Comentarios para documentación
+COMMENT ON TABLE silver.olist_geolocation IS 'Este conjunto de datos contiene la información del código zip de Brazil y sus coordenadas de latitud y longitud. Se puede usar para dibujar mapas y para encontrar las distancias entre compradores y clientes.';
+
+COMMENT ON COLUMN silver.olist_geolocation.geolocation_zip_code_prefix IS 
+'Los primeros cinco dígitos del código zip.';
+
+COMMENT ON COLUMN silver.olist_geolocation.geolocation_lat IS 'Latitud';
+
+COMMENT ON COLUMN silver.olist_geolocation.geolocation_lng IS 'Longitud';
+
+COMMENT ON COLUMN silver.olist_geolocation.geolocation_city IS 'Nombre de la ciudad';
+
+COMMENT ON COLUMN silver.olist_geolocation.geolocation_state IS 'Nombre del estado';
+
+COMMENT ON COLUMN silver.olist_geolocation.geolocation_created_date IS 'La fecha en la que se creo el registro';
