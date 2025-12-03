@@ -142,6 +142,8 @@ select order_id from silver.olist_order_items where price<=0;
 select order_id from silver.olist_order_items where freight_value<0;
 
 
+
+
 /*control para silver.olist_order_payments*/
 
 --controla la cantidad de registros. Total: 103886
