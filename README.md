@@ -156,6 +156,8 @@ Dataset de apoyo para traducir categorías del portugués al inglés.
 
 Carga cruda mediante tablas espejo y procesos Truncate + Insert.
 
+<img src="Documentacion/imagenes/Flujo De Datos.png">
+
 ## 🥈 Capa Plata -- Limpieza y Estandarización
 
 Incluye limpieza de productos, geolocalización, clientes, vendedores, órdenes, ítems de órdenes, pagos y reseñas. Algunos de los controles realizados en las entidades se muestran a continuación:
@@ -272,6 +274,8 @@ review_creation_date <= review_answer_timestamp
 
 review_score > 0, caso contrario → imputación con mediana.
 
+<img src="Documentacion/imagenes/Flujo De Datos_CapaPlata.png">
+
 ## 🥇 Capa Oro -- Modelo Dimensional
 
 ### Dimensiones
@@ -288,7 +292,9 @@ review_score > 0, caso contrario → imputación con mediana.
 
 ### Granularidad
 
--Un registro en la tabla de hechos representa un item de compra.
+- Un registro en la tabla de hechos representa un item de compra.
+
+<img src="Documentacion/imagenes/Flujo De Datos_CapaOro.drawio.png">
 
 <hr style="border: solid black 0.5em">
 
@@ -302,29 +308,31 @@ por mes, por día, por cuatrimestre, etc.
 
 ## 📁 Estructura del Repositorio
 
-📦 **Repo-ProyectoFinal-Devlight**
-├── 📚 **Documentacion/**
-│   ├── 🧩 **drawio/**  
-│   │   Contiene los diagramas del proyecto, como modelos entidad-relación,
-│   │   diagramas de procesos, flujos ETL y otros artefactos visuales.
-│   │
-│   ├── 🖼️ **imagenes/**  
-│       Carpeta con imágenes utilizadas para documentación, presentaciones,
-│       informes y el README.
-│
-├── 🧠 **Scripts/**
-│   ├── 🥉 **Bronze/**  
-│   │   Scripts encargados de la ingesta de datos crudos. Mínima transformación.
-│   │   Fuente principal para construir las capas superiores.
-│   │
-│   ├── 🥈 **Silver/**  
-│   │   Scripts que limpian, estandarizan y enriquecen los datos.  
-│   │   Aquí se eliminan nulos, se normalizan campos y se validan estructuras.
-│   │
-│   ├── 🥇 **Gold/**  
-│       Scripts que generan las tablas finales del modelo en estrella
-│
-└── 📄 **README.md**  
+📦 Repo-ProyectoFinal-Devlight
+├── Documentacion
+│   ├── drawio
+│   ├── imagenes
+├── Scripts
+│   ├── Bronze
+│   ├── Silver
+│   ├── Gold
+└── README.md
+
+<ul>
+<li>Documentacion: Los diferentes artefactos para explicar las partes del proyecto.
+  <ul>
+    <li>drawio: Los archivos drawio empleados</li>
+    <li>imagenes: Los imagenes del flujo de datos, arquitectura, relaciones entre entidades,etc.</li>
+  </ul>
+</li>
+<li>Scripts: Los scripts para la creación de las capas, creación de las tablas, limpieza, imputación, estandarización y control en cada una de ellas.
+  <ul>
+    <li>Bronze: Scripts para la creación de la capa bronce y la carga de los datos crudos</li>
+    <li>Silver: Scripts para la creación de la capa plata, limpieza, imputación, estandarización y carga de las tablas.</li>
+     <li>Oro: Scripts para la creación de la capa oro. Creación del modelo estrella con las tablas de hechos y dimensiones.</li>
+  </ul>
+</li>
+</ul>
     
 
 
