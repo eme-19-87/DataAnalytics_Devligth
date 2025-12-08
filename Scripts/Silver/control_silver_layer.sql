@@ -192,7 +192,7 @@ select count(*) from bronze.olist_order_reviews;
 --Resultado de la prueba: OK
 select review_id from silver.olist_order_reviews where review_id is null;
 select review_id from silver.olist_order_reviews where order_id is null;
-select review from silver.olist_order_reviews where review_score is null;
+select review_id from silver.olist_order_reviews where review_score is null;
 select review_id from silver.olist_order_reviews where review_creation_date is null;
 select review_id from silver.olist_order_reviews where review_answer_timestamp is null;
 
