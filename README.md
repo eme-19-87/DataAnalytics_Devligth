@@ -14,7 +14,8 @@ El proyecto adopta la **arquitectura Medallón (Bronce → Plata → Oro)** e im
 7.  🥇 Capa Oro -- Modelo Dimensional
 8.  📊 Dashboards en Reflex
 9.  📁 Estructura del Repositorio
-10. 📚 Referencias
+10. 🛠️ Ejecución Del Proyecto
+11. 📚 Referencias
 
 <hr style="border: solid black 0.5em">
 
@@ -274,7 +275,11 @@ review_creation_date <= review_answer_timestamp
 
 review_score > 0, caso contrario → imputación con mediana.
 
-<img src="Documentacion/imagenes/Flujo De Datos_CapaPlata.png">
+
+
+<div style="margin-top:1em">
+  <img src="Documentacion/imagenes/Flujo De Datos_CapaPlata.png">
+</div>
 
 ## 🥇 Capa Oro -- Modelo Dimensional
 
@@ -288,14 +293,21 @@ review_score > 0, caso contrario → imputación con mediana.
 
 ### Hechos
 
-- fact_order_items
+- fact_sales
 
 ### Granularidad
 
 - Un registro en la tabla de hechos representa un item de compra.
 
-<img src="Documentacion/imagenes/Flujo De Datos_CapaOro.drawio.png">
+<div style="margin-top:1em">
+  <img src="Documentacion/imagenes/Diagrama Estrella.png">
+  <p style="text-align: center; margin-top:20px">Diagrama Del Modelo Estrella</p>
+</div>
 
+<div style="margin:15px auto;">
+  <img src="Documentacion/imagenes/Flujo De Datos_CapaOro.drawio.png">
+  <p style="text-align: center; margin-top:20px">Diagrama Del Flujo De Datos</p>
+</div>
 <hr style="border: solid black 0.5em">
 
 ## 📊 Dashboards en Reflex
@@ -308,15 +320,17 @@ por mes, por día, por cuatrimestre, etc.
 
 ## 📁 Estructura del Repositorio
 
-📦 Repo-ProyectoFinal-Devlight
-├── Documentacion
-│   ├── drawio
-│   ├── imagenes
-├── Scripts
-│   ├── Bronze
-│   ├── Silver
-│   ├── Gold
-└── README.md
+<p>📦 Repo-ProyectoFinal-Devlight</p>
+<p>├── Documentacion</p>
+<p>│       ├── drawio<p>
+<p>│       ├── imagenes<p>
+<p>├── Scripts<p>
+<p>│       ├── Bronze<p>
+<p>│       ├── Silver<p>
+<p>│       ├── Gold<p>
+<p>└── README.md<p>
+
+
 
 <ul>
 <li>Documentacion: Los diferentes artefactos para explicar las partes del proyecto.
@@ -338,9 +352,178 @@ por mes, por día, por cuatrimestre, etc.
 
 <hr style="border: solid black 0.5em">
 
+## 📚 Ejecución Del Proyecto
+
+### Haciendo Funcionar A Docker
+
+El proyecto fue ejecutado en Docker. Éste puede ser instalado siguiendo las instrucciones indicadas en el enlace: <a href="https://www.docker.com/get-started/">Iniciar Con Docker</a>.
+Una vez instalado Docker, empleamos el siguiente archivo para  docker-compose:
+<code>
+version: "3.9"
+
+services:
+  postgres:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: postgres_bootcamp
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+      POSTGRES_DB: bootcamp_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+      - ./import_data:/import_data
+    networks:
+      - postgres_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U myuser -d bootcamp_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin_bootcamp
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - "8080:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      - ./import_data:/import_data
+    networks:
+      - postgres_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  metabase:
+    image: metabase/metabase:latest
+    container_name: metabase_bootcamp
+    restart: unless-stopped
+    environment:
+      MB_DB_TYPE: postgres
+      MB_DB_DBNAME: bootcamp_db
+      MB_DB_PORT: 5432
+      MB_DB_USER: myuser
+      MB_DB_PASS: mypassword
+      MB_DB_HOST: postgres
+    ports:
+      - "3000:3000"
+    volumes:
+      - metabase_data:/metabase-data
+    networks:
+      - postgres_network
+    depends_on:
+      - postgres
+    healthcheck:
+      test: curl --fail -s http://localhost:3000/api/health || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  
+networks:
+  postgres_network:
+    driver: bridge
+
+volumes:
+  pgadmin_data:
+  metabase_data:
+</code>
+
+Y el siguiente archivo para Dockerfile
+
+<code>
+  FROM postgres:16
+  EXPOSE 5432
+
+  VOLUME ["/var/lib/postgresql/data"]
+</code>
+
+En la carpeta donde se colocan ambos archivos, se debe crear una carpeta llamada import_data. Dentro de esa carpeta se debem colocar los archivos csv descargados desde Kaggle.
+Cuando esté todo listo, sólo debemos abrir Docker Desktop (una vez instalado) y seleccionar la opción mostrada en rojo. Eso nos abrirá la terminal indicada en verde
+
+<img src="Documentacion/imagenes/docker1.png">
+
+En la terminal, debemos escribir <i>cd <span style="color: red">ruta</span></i>, donde <span style="color: red">ruta</span> indica la ruta de la carpeta donde colocamos el archivo composer-yaml y Dockerfile.
+
+<img src="Documentacion/imagenes/docker2.png">
+
+En la imagen anterior vemos los comandos de la terminal de Docker. Primero, lo indicado en verde, es para ir al directorio en donde tenemos colocados los archivos composer-yaml y Dockerfile. Lo indicado en rojo es la manera de levantar las imágenes: <i><b>docker-compose up -d postgres pgadmin</b></i>.
+Si es la primera vez que ejecutan el comando, tardará unos minutos en traer las imágenes desde Docker Hub y, después de un tiempo, deben ver algo similar a esto en la terminal:
+
+<img src="Documentacion/imagenes/docker3.png">
+
+Si les aparece eso, entonces todo está funcionando correctamente. Podrán entrar al pgadmin haciendo: <i>localhost:8080</i>
+
+<img src="Documentacion/imagenes/docker4.png">
+
+El usuario es <i>admin@example.com</i> y la contraseña será <i>admin123</i>. Los archivos para docker lo pueden encontrar en <i><b>Documentacion/archivos/docker</b></i>
+
+<img src="Documentacion/imagenes/docker5.png">
+
+La última imagen muestra un ejemplo de cómo debe quedar la carpeta con los archivos. Si se clona este repositorio y se ejecutan los comandos de Docker, será allí donde se guarden las imágenes y volumenes del mismo. Pero, si quieres colocarlo en una carpeta en particular, sólo debes bajar los archivos composer-yaml, Dockerfile y colocarlo en la carpeta deseada. La carpeta indicada en azul es la que crea Docker. Pero la carpeta indica en rojo debes crearla manualmente y colocar allí los archivos CSV.
+
+### Creando El Servidor y La Base De Datos
+
+Una vez que se haya iniciado sesión en pgadmin, lo primero es crear un servidor para empezar a trabajar. Para ello, en las opciones de la izquierda hacemos click derecho en <i>Servers->Register->Server</i>
+
+<img src="Documentacion/imagenes/pgadmin1.png">
+
+Eso nos mostrará las opciones generales
+
+<img src="Documentacion/imagenes/pgadmin2.png">
+
+Y las opciones de conexión
+
+<img src="Documentacion/imagenes/pgadmin3.png">
+
+En las opciones de conexión, si se usan los documentos de docker indicados en este repositorio, debemos colocar los siguientes datos para el <span style="color: red">host</span>, <span style="color: green">usuario</span> y <span style="color: blue">constraseña</span> 
+
+<img src="Documentacion/imagenes/pgadmin4.png">
+
+Si le damos a la opción Save, obtendremos el resultado mostrado en la siguiente imagen y con eso nuestro servidor estará listo.
+
+<img src="Documentacion/imagenes/pgadmin5.png">
+
+En la imagen superior se pueden ver varias bases de datos creadas, pero es posible que en tu caso no veas ni una, o quizás sólo veas la base de datos llamada postgres. En cualquier caso, debes crear una nueva base de datos haciendo click derecho sobre el nombre del servidor, luego la opción Create y finalmente la opción Database
+
+<img src="Documentacion/imagenes/pgadmin6.png">
+
+Le damos un nombre a la base de datos y la creamos
+
+<img src="Documentacion/imagenes/pgadmin7.png">
+
+Se da click en el botón Save y la base de datos debe estar creada
+
+<img src="Documentacion/imagenes/pgadmin8.png">
+
+Una forma rápida para ejecutar los scripts en pgadmin es hacer click derecho sobre la base de datos creada y elegir la opción Query Tool
+
+<img src="Documentacion/imagenes/pgadmin9.png">
+
+Esto nos abrirá una ventana donde podremos realizar consultas SQL. Nos daremos cuenta que esa venta ejecutará las consultas SQL sobre la base de datos en cuestión porque veremos señalado el nombre de la base de datos, como lo muestra la siguiente imagen
+
+<img src="Documentacion/imagenes/pgadmin10.png">
+
+Allí podremos pegar los códigos de nuestros scripts. Por ejemplo, podemos abrir el script <i>ddl_bronze_layer.sql</i> y copiar ese código en la ventana de query que acabamos de crear. Luego, simplemente le damos a F5 y se crearán las tablas de la capa bronze. <b>Es importante que previamente los archivos CSV estén colocados en la carpeta que se indicó anteriormente.</b>
+<hr style="border: solid black 0.5em">
+
 ## 📚 Referencias
 
 1.  Olist Dataset (Kaggle):https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce/
 2.  Baraa Khatib -- Data Warehouse Project: https://github.com/DataWithBaraa/sql-data-warehouse-project
 3.  SQL Data Warehouse from Scratch | Full Hands-On Data Engineering Project-Data with Baraa: https://www.youtube.com/watch?v=9GVqKuTVANE&list=PLNcg_FV9n7qaUWeyUkPfiVtMbKlrfMqA8
 4.  Lista de Municípios Brasileiros e Informações Adicionais: https://blog.mds.gov.br/redesuas/lista-de-municipios-brasileiros/
+5.  Postgres SQL Generar diccionario de datos: https://gist.github.com/juelvaldivia/15f90280a86997faca1cf5997ff0a683
+6.  Documentación De Docker: https://docs.docker.com/
+7. Documentación PostgreSQL: https://www.postgresql.org/docs/
