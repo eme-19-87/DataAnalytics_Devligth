@@ -289,3 +289,20 @@ COMMENT ON COLUMN silver.olist_geolocation.geolocation_city IS 'Nombre de la ciu
 COMMENT ON COLUMN silver.olist_geolocation.geolocation_state IS 'Nombre del estado';
 
 COMMENT ON COLUMN silver.olist_geolocation.geolocation_created_date IS 'La fecha en la que se creo el registro';
+
+--Creación de la tabla para la traducción de portugués a inglés derivada de product_category_name_translation.csv
+-- Drop table if exists
+DROP TABLE IF EXISTS silver.olist_product_category_name_translation;
+
+-- Create product_category_name_translation table
+CREATE TABLE silver.olist_product_category_name_translation (
+    product_category_name VARCHAR(100),
+    product_category_name_english VARCHAR(100)
+);
+
+-- Comentarios para documentación
+COMMENT ON TABLE silver.olist_product_category_name_translation IS 'Translation table for product category names from Portuguese to English';
+
+COMMENT ON COLUMN silver.olist_product_category_name_translation.product_category_name IS 'Product category name in Portuguese (original language)';
+
+COMMENT ON COLUMN silver.olist_product_category_name_translation.product_category_name_english IS 'Translated product category name in English';
