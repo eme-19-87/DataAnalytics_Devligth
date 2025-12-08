@@ -515,7 +515,30 @@ Esto nos abrirá una ventana donde podremos realizar consultas SQL. Nos daremos 
 
 <img src="Documentacion/imagenes/pgadmin10.png">
 
-Allí podremos pegar los códigos de nuestros scripts. Por ejemplo, podemos abrir el script <i>ddl_bronze_layer.sql</i> y copiar ese código en la ventana de query que acabamos de crear. Luego, simplemente le damos a F5 y se crearán las tablas de la capa bronze. <b>Es importante que previamente los archivos CSV estén colocados en la carpeta que se indicó anteriormente.</b>
+Allí podremos pegar los códigos de nuestros scripts. Por ejemplo, podemos abrir el script <i>ddl_bronze_layer.sql</i> y copiar ese código en la ventana de query que acabamos de crear. Luego, simplemente le damos a F5 y se crearán las tablas de la capa bronze. <b>Es importante que previamente los archivos CSV estén colocados en la carpeta import_data como se indicó anteriormente.</b>
+Podemos revisar que las tablas han sido creadas buscando en las opciones de la izquierda la opción Schema. Allí veremos que aparecerán dos: public y bronze. El esquema bronze es el que tiene las tablas con la información necesaria.
+
+<img src="Documentacion/imagenes/pgadmin11.png">
+
+Cuando veamos que está correctamente creado, ahora debemos ejecutar el script <i><b>proc_load_bronze.sql</b></i>. Este script nos creará un procedimiento almacenado llamado <i><b>sp_load_data</b></i>. Para saber si después de ejecutar el script el procedimiento se creó correctamente, debemos ir a la base de datos: <p><i>brasil_ecommerce->schema->bronze->Procedures</i></p> y deberíamos notar lo que muestra la siguiente imagen:
+
+<img src="Documentacion/imagenes/pgadmin12.png">
+
+Con el procedimiento ya creado, podemos escribir el siguiente comando SQL:
+
+<p><i>CALL bronze.sp_load_data()</i></p>
+
+
+Luego de escribir el comando, lo ejecutamos y eso permitirá cargar los datos en las tablas de la capa bronce.
+Si todo salió correcto, deberíamos ver la siguiente leyenda en la consola de mensajes:
+
+<img src="Documentacion/imagenes/pgadmin13.png">
+
+Y para ver que las tablas están correctamente cargadas, pueden realizar la siguiente consulta:
+
+<p><i>select * from bronze.olist_customers limit 1;</i></p> 
+
+Si les aparecen los resultados, es que las tablas se cargaron correctamente.
 <hr style="border: solid black 0.5em">
 
 ## 📚 Referencias
