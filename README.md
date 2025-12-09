@@ -275,7 +275,7 @@ review_creation_date <= review_answer_timestamp
 
 review_score > 0, caso contrario → imputación con mediana.
 
-
+Los campos para estas tablas son los mismos. Sólo se agrega un campo adicional que indica la fecha de creación de los registros.
 
 <div style="margin-top:1em">
   <img src="Documentacion/imagenes/Flujo De Datos_CapaPlata.png">
@@ -308,6 +308,70 @@ review_score > 0, caso contrario → imputación con mediana.
   <img src="Documentacion/imagenes/Flujo De Datos_CapaOro.drawio.png">
   <p style="text-align: center; margin-top:20px">Diagrama Del Flujo De Datos</p>
 </div>
+
+📘 fact_sales
+
+
+<table> <tr><th style="border:2px solid black;">Campos</th><th style="border:2px solid black;">Explicación</th></tr> <tr><td style="border:2px solid black;">order_key</td><td style="border:2px solid black;">La clave subrogada para la tabla de hechos</td></tr> <tr><td style="border:2px solid black;">order_id</td><td style="border:2px solid black;">El identificador único de la orden de la base de datos transaccional.</td></tr> <tr><td style="border:2px solid black;">order_item_id</td><td style="border:2px solid black;">El identificador del item de orden.</td></tr> <tr><td style="border:2px solid black;">customer_key</td><td style="border:2px solid black;">La clave subrogada para el cliente que realizó la compra</td></tr> <tr><td style="border:2px solid black;">seller_key</td><td style="border:2px solid black;">La clave subrogada del vendedor que realizó la venta</td></tr> 
+<tr><td style="border:2px solid black;">product_key</td><td style="border:2px solid black;">La clave subrogada para el producto vendido</td></tr> <tr><td style="border:2px solid black;">status_key</td><td style="border:2px solid black;">La clave subrogada del estado de la venta</td></tr>
+<tr><td style="border:2px solid black;">date_purchase_key</td><td style="border:2px solid black;">La clave subrogada para la fecha en la cual se realizó la venta</td></tr> <tr><td style="border:2px solid black;">price</td><td style="border:2px solid black;">El precio del item vendido</td></tr>
+<tr><td style="border:2px solid black;">freight_value</td><td style="border:2px solid black;">El valor del flete para el item vendido</td></tr> <tr><td style="border:2px solid black;">Total</td><td style="border:2px solid black;">Suma del precio de venta y el precio del flete.</td></tr>
+</table>
+
+---
+
+📘 dim_customers
+
+
+<table> <tr><th style="border:2px solid black;">Campos</th><th style="border:2px solid black;">Explicación</th></tr> <tr><td style="border:2px solid black;">customer_key</td><td style="border:2px solid black;">La clave subrogada para la tabla de dimension</td></tr> <tr><td style="border:2px solid black;">customer_id</td><td style="border:2px solid black;">El identificador único del cliente de la base de datos transaccional.</td></tr> <tr><td style="border:2px solid black;">customer_unique_id</td><td style="border:2px solid black;">Identificador único de cliente. Útil si el cliente realiza recompras en las sucursales.</td></tr> <tr><td style="border:2px solid black;">customer_city</td><td style="border:2px solid black;">La ciudad donde vive el cliente</td></tr> <tr><td style="border:2px solid black;">customer_state</td><td style="border:2px solid black;">El estado donde vive el cliente</td></tr> 
+<tr><td style="border:2px solid black;">customer_city_lat</td><td style="border:2px solid black;">La latitud de la ciudad del cliente.</td></tr> 
+<tr><td style="border:2px solid black;">customer_city_lng</td><td style="border:2px solid black;">La longitud de la ciudad donde vive el cliente </td></tr>
+</table>
+
+---
+
+📘 dim_sellers
+
+
+<table> <tr><th style="border:2px solid black;">Campos</th><th style="border:2px solid black;">Explicación</th></tr> <tr><td style="border:2px solid black;">seller_key</td><td style="border:2px solid black;">La clave subrogada para la tabla de dimension</td></tr> <tr><td style="border:2px solid black;">seller_id</td><td style="border:2px solid black;">El identificador único del vendedor de la base de datos transaccional.</td></tr> <tr><td style="border:2px solid black;">seller_city</td><td style="border:2px solid black;">La ciudad donde vive el vendedor</td></tr> <tr><td style="border:2px solid black;">seller_state</td><td style="border:2px solid black;">El estado donde vive el vendedor</td></tr> 
+<tr><td style="border:2px solid black;">seller_city_lat</td><td style="border:2px solid black;">La latitud de la ciudad del vendedor.</td></tr> 
+<tr><td style="border:2px solid black;">seller_city_lng</td><td style="border:2px solid black;">La longitud de la ciudad donde vive el vendedor </td></tr>
+</table>
+
+---
+
+📘 dim_products
+
+
+<table> <tr><th style="border:2px solid black;">Campos</th><th style="border:2px solid black;">Explicación</th></tr> <tr><td style="border:2px solid black;">product_key</td><td style="border:2px solid black;">La clave subrogada para la tabla de dimension</td></tr> <tr><td style="border:2px solid black;">product_id</td><td style="border:2px solid black;">El identificador único del producto de la base de datos transaccional.</td></tr> <tr><td style="border:2px solid black;">product_weight_g</td><td style="border:2px solid black;">El peso en gramos del producto</td></tr> <tr><td style="border:2px solid black;">product_length_cm</td><td style="border:2px solid black;">El largo del producto en centímetros</td></tr> 
+<tr><td style="border:2px solid black;">product_height_cm</td><td style="border:2px solid black;">La altura del producto en centímetros</td></tr> 
+<tr><td style="border:2px solid black;">product_width_cm</td><td style="border:2px solid black;">El ancho del producto en centímetros</td></tr>
+<tr><td style="border:2px solid black;">product_category</td><td style="border:2px solid black;">La categoría a la que pertenece el producto</td></tr>
+</table>
+
+---
+
+📘 dim_status
+
+
+<table> <tr><th style="border:2px solid black;">Campos</th><th style="border:2px solid black;">Explicación</th></tr> <tr><td style="border:2px solid black;">status_key</td><td style="border:2px solid black;">La clave subrogada para la tabla de dimension</td></tr> <tr><td style="border:2px solid black;">status</td><td style="border:2px solid black;">Determina la situación del producto: entregado, cancelado, etc.</td></tr> <tr><td style="border:2px solid black;">status_group</td><td style="border:2px solid black;">Clasifica a un producto en tres: delivered si ya fue entregado, cancelled si fue cancelado y in progress en otro caso</td></tr>
+</table>
+
+
+---
+
+📘 dim_calendar
+
+
+<table> <tr><th style="border:2px solid black;">Campos</th><th style="border:2px solid black;">Explicación</th></tr> <tr><td style="border:2px solid black;">date_key</td><td style="border:2px solid black;">La clave subrogada para la tabla de dimension</td></tr> <tr><td style="border:2px solid black;">date_ymd</td><td style="border:2px solid black;">La fecha única en formato año, mes, día</td></tr> <tr><td style="border:2px solid black;">date_year</td><td style="border:2px solid black;">Un entero que representa el año</td></tr>
+<tr><td style="border:2px solid black;">date_month</td><td style="border:2px solid black;">Un entero que representa el mes</td></tr> <tr><td style="border:2px solid black;">date_day</td><td style="border:2px solid black;">Un entero que representa el día</td></tr>
+<tr><td style="border:2px solid black;">month_name</td><td style="border:2px solid black;">Nombre del mes</td></tr> <tr><td style="border:2px solid black;">date_weekday</td><td style="border:2px solid black;">Un entero que representa el día de la semana</td></tr>
+<tr><td style="border:2px solid black;">weekday_iso_number</td><td style="border:2px solid black;">El día de la semana en formato ISO</td></tr> <tr><td style="border:2px solid black;">weekday_of_year</td><td style="border:2px solid black;">Un entero que representa el día de la semana</td></tr>
+<tr><td style="border:2px solid black;">day_of_year</td><td style="border:2px solid black;">Representa el día del año</td></tr> <tr><td style="border:2px solid black;">quarter</td><td style="border:2px solid black;">Un entero que indica el cuarto de año actual</td></tr>
+<tr><td style="border:2px solid black;">is_weekend</td><td style="border:2px solid black;">Indica si es fin de semana</td></tr> <tr><td style="border:2px solid black;">is_holliday</td><td style="border:2px solid black;">Indica si es feriado</td></tr>
+<tr><td style="border:2px solid black;">yyyymmdd</td><td style="border:2px solid black;">La fecha en formato string de año, mes, día</td></tr> <tr><td style="border:2px solid black;">yyyymm</td><td style="border:2px solid black;">La fecha en formato string año, mes</td></tr>
+<tr><td style="border:2px solid black;">iso_date</td><td style="border:2px solid black;">La fecha en formato ISO</td></tr>
+</table>
 <hr style="border: solid black 0.5em">
 
 ## 📊 Dashboards en Reflex
@@ -320,21 +384,31 @@ por mes, por día, por cuatrimestre, etc.
 
 ## 📁 Estructura del Repositorio
 
-<p>📦 Repo-ProyectoFinal-Devlight</p>
-<p>├── Documentacion</p>
-<p>│       ├── drawio<p>
-<p>│       ├── imagenes<p>
-<p>├── Scripts<p>
-<p>│       ├── Bronze<p>
-<p>│       ├── Silver<p>
-<p>│       ├── Gold<p>
-<p>└── README.md<p>
+```text
+  📦 Repo-ProyectoFinal-Devlight
+   ├── Documentacion
+   │       ├── archivos
+   │       |      ├── docker
+   │       ├── drawio
+   │       ├── imagenes
+   ├── Scripts
+   │       ├── Bronze
+   │       ├── Silver
+   │       ├── Gold
+   └── README.md
+```
 
 
 
 <ul>
 <li>Documentacion: Los diferentes artefactos para explicar las partes del proyecto.
   <ul>
+    <li>
+        archivos: Archivos adicionales
+        <ul>
+          <li>docker: Los archivos de docker usados en el proyecto</li>
+        </ul>
+    </li>
     <li>drawio: Los archivos drawio empleados</li>
     <li>imagenes: Los imagenes del flujo de datos, arquitectura, relaciones entre entidades,etc.</li>
   </ul>
@@ -539,6 +613,17 @@ Y para ver que las tablas están correctamente cargadas, pueden realizar la sigu
 <p><i>select * from bronze.olist_customers limit 1;</i></p> 
 
 Si les aparecen los resultados, es que las tablas se cargaron correctamente.
+
+La creación de la capa de Plata y de Oro es la misma. El orden para ejecutar los archivos es la siguiente:
+
+<ol>
+  <li>Ejecutar ddl_silver_layer.sql</li>
+  <li>Ejecutar proc_load_silver_layer.sql. Luego realizar call silver.sp_master_load_silver_layer()</li>
+   <li>Ejecutar ddl_gold.sql. Esta sólo cargará vistas.</li>
+</ol>
+
+Después de realizar el paso 2, se pueden ejecutar las sentencias señaladas en control_silver_layer.sql para revisar la consistencia y limpieza de los datos.
+
 <hr style="border: solid black 0.5em">
 
 ## 📚 Referencias
