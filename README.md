@@ -15,6 +15,7 @@ El proyecto adopta la **arquitectura Medallón (Bronce → Plata → Oro)** e im
 8.  📊 Dashboards en Reflex
 9.  📁 Estructura del Repositorio
 10. 🛠️ Ejecución Del Proyecto
+10. 🛠️ Despliegue En Neon
 11. 📚 Referencias
 
 <hr style="border: solid black 0.5em">
@@ -78,6 +79,7 @@ Modelo dimensional orientado a análisis.
 - olist_sellers_dataset.csv
 - product_category_name_translation.csv
 
+<img src="Documentacion/imagenes/Modelo_Inicial.png">
 ---
 
 📘 olist_customers_dataset.csv
@@ -402,6 +404,7 @@ por mes, por día, por cuatrimestre, etc.
    │       ├── archivos
    │       |      ├── docker
    │       ├── drawio
+   |       ├── guías
    │       ├── imagenes
    ├── Scripts
    │       ├── Bronze
@@ -422,6 +425,7 @@ por mes, por día, por cuatrimestre, etc.
         </ul>
     </li>
     <li>drawio: Los archivos drawio empleados</li>
+    <li>guías: Archivos de texto adicionales con información de despliegue y uso de otras herramientas.</li>
     <li>imagenes: Los imagenes del flujo de datos, arquitectura, relaciones entre entidades,etc.</li>
   </ul>
 </li>
@@ -638,6 +642,15 @@ Después de realizar el paso 2, se pueden ejecutar las sentencias señaladas en 
 
 <hr style="border: solid black 0.5em">
 
+---
+
+## 🛠️ Despliegue En Neon
+
+Para ver en detalles cómo deplegar la base de datos en Neon, puede dirigirse a <span style="color:black">Documentacion/guias/Trabajando Con Neon.pdf</span>
+Ese archivo trae una guía paso a paso de cómo desplegar en Neon.
+
+---
+
 ## 📚 Referencias
 
 1.  Olist Dataset (Kaggle):https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce/
@@ -647,3 +660,7 @@ Después de realizar el paso 2, se pueden ejecutar las sentencias señaladas en 
 5.  Postgres SQL Generar diccionario de datos: https://gist.github.com/juelvaldivia/15f90280a86997faca1cf5997ff0a683
 6.  Documentación De Docker: https://docs.docker.com/
 7. Documentación PostgreSQL: https://www.postgresql.org/docs/
+8. Neon: https://neon.com/
+9. Proyecto De Dashboard Con Reflex Para Visualizar Los Datos: https://github.com/matiasmierezsuarez/dashboard_bootcamp.git
+
+

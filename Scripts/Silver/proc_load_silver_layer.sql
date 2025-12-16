@@ -1,3 +1,12 @@
+/*
+Script that allows data to be inserted into the silver layer. The Truncate-Insert method is applied. Therefore, running this script will remove the tables from the silver layer and rebuild them
+Execute script and then write 
+
+silver.sp_master_load_silver_layer()
+
+To run the load
+*/
+
 CREATE OR REPLACE PROCEDURE silver.sp_load_products_silver_layer()
 LANGUAGE plpgsql
 AS $$
@@ -239,75 +248,102 @@ END;
 $$;
 
 
-CREATE OR REPLACE PROCEDURE silver.sp_load_orderss_silver_layer()
+CREATE OR REPLACE PROCEDURE silver.sp_load_orders_silver_layer()
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    t_start       TIMESTAMP;
-    t_after_trunc TIMESTAMP;
+    -- tiempos
+    t_start        TIMESTAMP;
+    t_after_trunc  TIMESTAMP;
     t_after_insert TIMESTAMP;
+
+    -- medianas (intervalos)
+    med_purchase_to_approved INTERVAL;
+    med_approved_to_carrier  INTERVAL;
+    med_carrier_to_customer  INTERVAL;
 BEGIN
     t_start := clock_timestamp();
-    RAISE NOTICE '📌 Inicio del procedimiento: %', t_start;
+    RAISE NOTICE 'Inicio procedimiento: %', t_start;
 
     BEGIN
         ---------------------------------------------------------------------
-        -- TRUNCATE
+        -- 1. CALCULAR MEDIANAS (solo relaciones válidas)
+        ---------------------------------------------------------------------
+        SELECT
+            percentile_cont(0.5) WITHIN GROUP (
+                ORDER BY order_approved_at - order_purchase_timestamp
+            ),
+            percentile_cont(0.5) WITHIN GROUP (
+                ORDER BY order_delivered_carrier_date - order_approved_at
+            ),
+            percentile_cont(0.5) WITHIN GROUP (
+                ORDER BY order_delivered_customer_date - order_delivered_carrier_date
+            )
+        INTO
+            med_purchase_to_approved,
+            med_approved_to_carrier,
+            med_carrier_to_customer
+        FROM bronze.olist_orders
+        WHERE order_status = 'delivered'
+          AND order_purchase_timestamp IS NOT NULL
+          AND order_approved_at IS NOT NULL
+          AND order_delivered_carrier_date IS NOT NULL
+          AND order_delivered_customer_date IS NOT NULL
+          AND order_purchase_timestamp < order_approved_at
+          AND order_approved_at < order_delivered_carrier_date
+          AND order_delivered_carrier_date < order_delivered_customer_date;
+
+        RAISE NOTICE 'Medianas calculadas:';
+        RAISE NOTICE ' purchase → approved : %', med_purchase_to_approved;
+        RAISE NOTICE ' approved → carrier  : %', med_approved_to_carrier;
+        RAISE NOTICE ' carrier → customer  : %', med_carrier_to_customer;
+
+        ---------------------------------------------------------------------
+        -- 2. TRUNCATE
         ---------------------------------------------------------------------
         TRUNCATE TABLE silver.olist_orders;
         t_after_trunc := clock_timestamp();
 
-        RAISE NOTICE '⏱ Tiempo TRUNCATE: % segundos',
+        RAISE NOTICE 'Tiempo TRUNCATE: % segundos',
             EXTRACT(EPOCH FROM (t_after_trunc - t_start));
 
         ---------------------------------------------------------------------
-        -- INSERT CON REGLAS Y CTE
+        -- 3. INSERT con imputación encadenada (sin tocar estimated)
         ---------------------------------------------------------------------
-        WITH 
-        cte_base AS (
+        WITH approved AS (
             SELECT
-                order_id,
-                customer_id,
-                order_status,
-                order_purchase_timestamp,
-                order_approved_at,
-                order_delivered_carrier_date,
-                order_delivered_customer_date,
-                order_estimated_delivery_date
-            FROM bronze.olist_orders
-        ),
-        cte_approved AS (
-            SELECT
-                *,
+                o.*,
                 CASE
-                    WHEN order_approved_at IS NULL 
-                         AND order_status = 'delivered'
-                    THEN order_purchase_timestamp + INTERVAL '1 day'
-                    ELSE order_approved_at
+                    WHEN o.order_approved_at IS NULL
+                      OR o.order_approved_at <= o.order_purchase_timestamp
+                    THEN o.order_purchase_timestamp + med_purchase_to_approved
+                    ELSE o.order_approved_at
                 END AS approved_fixed
-            FROM cte_base
+            FROM bronze.olist_orders o
         ),
-        cte_carrier AS (
+        carrier AS (
             SELECT
                 *,
                 CASE
-                    WHEN (order_delivered_carrier_date < approved_fixed OR order_delivered_carrier_date IS NULL) AND order_status='delivered'
-                    THEN approved_fixed + INTERVAL '1 day'
+                    WHEN order_delivered_carrier_date IS NULL
+                      OR order_delivered_carrier_date <= approved_fixed
+                    THEN approved_fixed + med_approved_to_carrier
                     ELSE order_delivered_carrier_date
                 END AS carrier_fixed
-            FROM cte_approved
+            FROM approved
         ),
-        cte_customer AS (
+        customer AS (
             SELECT
                 *,
                 CASE
-                    WHEN (order_delivered_customer_date < carrier_fixed OR order_delivered_customer_date IS NULL) AND order_status='delivered'
-                    THEN carrier_fixed + INTERVAL '1 day'
+                    WHEN order_delivered_customer_date IS NULL
+                      OR order_delivered_customer_date <= carrier_fixed
+                    THEN carrier_fixed + med_carrier_to_customer
                     ELSE order_delivered_customer_date
                 END AS customer_fixed
-            FROM cte_carrier
+            FROM carrier
         )
-        INSERT INTO silver.olist_orders(
+        INSERT INTO silver.olist_orders (
             order_id,
             customer_id,
             order_status,
@@ -325,21 +361,22 @@ BEGIN
             approved_fixed,
             carrier_fixed,
             customer_fixed,
+            -- estimated se mantiene tal cual
             order_estimated_delivery_date
-        FROM cte_customer;
+        FROM customer;
 
         t_after_insert := clock_timestamp();
 
-        RAISE NOTICE '⏱ Tiempo INSERT: % segundos',
+        RAISE NOTICE 'Tiempo INSERT: % segundos',
             EXTRACT(EPOCH FROM (t_after_insert - t_after_trunc));
 
-        RAISE NOTICE '⏱⏱ Tiempo TOTAL procedimiento: % segundos',
+        RAISE NOTICE 'Tiempo TOTAL procedimiento: % segundos',
             EXTRACT(EPOCH FROM (t_after_insert - t_start));
 
     EXCEPTION WHEN OTHERS THEN
-        RAISE EXCEPTION '❌ Error en sp_load_orderss_silver_layer: %', SQLERRM;
+        RAISE EXCEPTION
+            'Error en sp_load_orders_silver_layer(): %', SQLERRM;
     END;
-
 END;
 $$;
 
@@ -586,36 +623,14 @@ BEGIN
 
     BEGIN
         ----------------------------------------------------------------------
-        -- CALCULAR LA MEDIANA DE review_score
+        -- CALCULAR MEDIANA DE review_score CON percentile_cont
         ----------------------------------------------------------------------
-      WITH ordered AS (
-    SELECT review_score,
-           ROW_NUMBER() OVER (ORDER BY review_score) AS rn,
-           COUNT(*) OVER () AS total_count
-    FROM bronze.olist_order_reviews
-    WHERE review_score IS NOT NULL
-),
-med AS (
-    SELECT
-        CASE
-            WHEN total_count % 2 = 1 THEN
-                -- Impar → valor central
-                (SELECT review_score
-                 FROM ordered
-                 WHERE rn = (total_count + 1) / 2)
-
-            ELSE
-                -- Par → promedio de los dos centrales
-                (SELECT AVG(review_score)::NUMERIC
-                 FROM ordered
-                 WHERE rn IN (total_count/2, total_count/2 + 1))
-        END AS median_value
-    FROM ordered
-    LIMIT 1  -- evita repetir el CASE N veces
-)
-SELECT median_value INTO median_review_score
-FROM med;
-
+        SELECT
+            percentile_cont(0.5)
+            WITHIN GROUP (ORDER BY review_score)
+        INTO median_review_score
+        FROM bronze.olist_order_reviews
+        WHERE review_score IS NOT NULL;
 
         RAISE NOTICE '>> Mediana calculada de review_score = %', median_review_score;
 
@@ -626,7 +641,7 @@ FROM med;
         TRUNCATE TABLE silver.olist_order_reviews;
 
         ----------------------------------------------------------------------
-        -- INSERT
+        -- INSERT CON IMPUTACIÓN POR MEDIANA
         ----------------------------------------------------------------------
         RAISE NOTICE '>> INSERTANDO registros en silver.olist_order_reviews ...';
 
@@ -642,25 +657,28 @@ FROM med;
         SELECT
             review_id,
             order_id,
-            COALESCE(review_score, median_review_score)           AS review_score,
-            TRIM(COALESCE(review_comment_title, 'n/a'))           AS review_comment_title,
-            TRIM(COALESCE(review_comment_message, 'n/a'))         AS review_comment_message,
+            COALESCE(review_score, median_review_score)      AS review_score,
+            TRIM(COALESCE(review_comment_title, 'n/a'))     AS review_comment_title,
+            TRIM(COALESCE(review_comment_message, 'n/a'))   AS review_comment_message,
             review_creation_date,
             review_answer_timestamp
         FROM bronze.olist_order_reviews;
 
-        RAISE NOTICE '   ✓ Inserción completada correctamente.';
+        RAISE NOTICE '✓ Inserción completada correctamente.';
 
     EXCEPTION WHEN OTHERS THEN
-        RAISE EXCEPTION 'ERROR dentro de sp_load_order_reviews_silver_layer(): %', SQLERRM;
+        RAISE EXCEPTION
+            'ERROR dentro de sp_load_order_reviews_silver_layer(): %',
+            SQLERRM;
     END;
 
     ----------------------------------------------------------------------
-    -- TIEMPO FINAL
+    -- TIEMPO TOTAL
     ----------------------------------------------------------------------
     t_end := clock_timestamp();
     RAISE NOTICE '=== FIN: sp_load_order_reviews_silver_layer() ===';
-    RAISE NOTICE 'Tiempo total: % ms', EXTRACT(MILLISECOND FROM (t_end - t_start));
+    RAISE NOTICE 'Tiempo total: % ms',
+        EXTRACT(MILLISECOND FROM (t_end - t_start));
 
 END;
 $$;
