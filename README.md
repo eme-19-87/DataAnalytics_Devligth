@@ -35,13 +35,22 @@ El objetivo es construir un **Data Warehouse robusto y confiable** que:
 Herramienta Uso
 
 ---
+<ul>
+<li>PostgreSQL: SGBD para el almacenamiento de los datos. </li>
+<li>Reflex: Para la visualización del dashboards.</li>
+<li>GitHub: Control de versiones.</li>
+<li>Draw.io: Diagramas de arquitectura.</li>
+<li>Python: Como lenguaje para crear los dashboards con ayuda de Reflex.</li>
+<li>
+Trello: Registro de actividades para el desarrollo del proyecto.</li>
 
-PostgreSQL Motor del Data Warehouse.
-Reflex Visualización de dashboards.
-GitHub Control de versiones.
-Draw.io Diagramas de arquitectura.
-Python Como lenguaje para crear los dashboards con ayuda de Reflex.
-Trello Registro de actividades para el desarrollo del proyecto.
+</ul>
+
+
+
+
+
+
 
 <hr style="border: solid black 0.5em">
 
@@ -167,27 +176,26 @@ Incluye limpieza de productos, geolocalización, clientes, vendedores, órdenes,
 
 📦 Productos
 
-Imputación de nulos usando la mediana por categoría.
+Se corroboró que no haya id de productos repetidos.
 
-Cálculo de peso faltante: peso = alto × ancho × largo × factor.
+Algunas de los campos que almacenan las dimensiones de los productos (alto, ancho, largo) poseían valores nulos. Se imputaron esos valores usando la mediana de los campos respectivos no nulos agrupando los registros por medio de la categoría del producto.
 
-Normalización de texto y eliminación de espacios.
+En algunos casos, el peso del producto también era nulo o cero. Se recalculó el peso mediante  peso = alto × ancho × largo × factor_corrección. El factor_corrección es un valor estimado mediante una regresión lineal
+simple usando el alto, ancho y largo del producto.
 
-Corrección de valores ≤ 0 en dimensiones.
+Estandarización de texto y eliminación de espacios.
 
-Asignación de 0 cuando faltan longitudes o fotos.
+Los campos que tienen la información sobre la longitud del título, descripción o cantidad de fotos suelen tener valores nulos. Se imputa al valor 0 ya que consideramos que ese valor es una buena forma de estandarizar la ausencia de datos para esos campos.
 
 ---
 
 🗺️ Geolocalización
 
-Promedio de latitud y longitud por código ZIP.
+Existen varios registros para las mismas ciudades, sólo que los valores de latitud y longitud difieren muy poco. Una explicación para esto es que se tomaron los datos GPS desde varios puntos cercanos a la misma ubicación. Para obtener un solo registro de geolocalización para cada lugar, se calcula el promedio de latitud y longitud por código ZIP. El resultado es el que se guarda.
 
-Eliminación de duplicados derivados de múltiples lecturas GPS.
+Validación cruzada con clientes y vendedores. Así se pudieron obtener clientes y vendedores con nombres de ciudades que poseían errores de tipeo. Dichos errores fueron solucionados. 
 
-Validación cruzada con clientes y vendedores.
-
-Identificación de ciudades no presentes en este dataset mediante Python y PostgreSQL.
+Identificación de ciudades no presentes en este dataset mediante Python y PostgreSQL. Este punto no pudimos solucionarlo porque no tenemos una fuente confiable para anexar las ciudades de clientes y vendedores que no se encuentran en geolocalización.
 
 ---
 
@@ -195,7 +203,7 @@ Identificación de ciudades no presentes en este dataset mediante Python y Postg
 
 Validación de unicidad de customer_id.
 
-customer_unique_id repetido aceptado (recompras).
+customer_unique_id repetido aceptado: representa la recompra del cliente en la sucursal.
 
 Corrección de errores de tipeo en ciudades mediante:
 
@@ -241,13 +249,16 @@ delivered_customer
 
 Corrección automática:
 
-Si una fecha es incoherente → se ajusta para que sea un día mayor.
+Si una fecha es incoherente → se ajusta para que sea un día mayor. Este es un primer enfoque, puede 
+modificarse usando el promedio de las diferencias de fechas.
 
-Se aplica solo a órdenes delivered.
+Se aplica solo a órdenes delivered. Los demás estados de las órdenes pueden tener algunos campos de fecha en valores nulos.
 
 ---
 
 🛍️ Ítems de Orden
+
+Se corrobora que:
 
 price > 0
 
@@ -265,7 +276,8 @@ payment_installments > 0
 
 Corrección para casos donde figura 0 cuotas.
 
-Comparación del monto total pagado vs. costo total de la orden.
+Comparación del monto total pagado vs. costo total de la orden. Estos difieren en algunos casos.
+Nuestra idea es que la base de datos se tomó cuando algunas ordenes aún tenían cuotas pendientes.
 
 ---
 
