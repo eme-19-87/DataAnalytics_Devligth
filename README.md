@@ -2,6 +2,7 @@
 
 Este repositorio contiene el desarrollo completo de un **Data Warehouse** construido a partir del conjunto de datos público de comercio electrónico de Brasil publicado por **Olist Store** en Kaggle.
 El proyecto adopta la **arquitectura Medallón (Bronce → Plata → Oro)** e implementa procesos ETL para limpieza, normalización, modelado dimensional y análisis final.
+Los enlaces a los datos se encuentran en la sección de referencias $[1]$ y $[4]$.
 
 ## 🧭 Tabla de Contenidos
 
@@ -13,10 +14,12 @@ El proyecto adopta la **arquitectura Medallón (Bronce → Plata → Oro)** e im
 6.  🥈 Capa Plata -- Limpieza y Estandarización
 7.  🥇 Capa Oro -- Modelo Dimensional
 8.  📊 Dashboards en Reflex
+8.1 📊 Ejemplos De Resultados
 9.  📁 Estructura del Repositorio
 10. 🛠️ Ejecución Del Proyecto
 10. 🛠️ Despliegue En Neon
 11. 📚 Referencias
+11. :computer: Autores
 
 <hr style="border: solid black 0.5em">
 
@@ -189,6 +192,11 @@ Estandarización de texto y eliminación de espacios.
 
 Los campos que tienen la información sobre la longitud del título, descripción o cantidad de fotos suelen tener valores nulos. Se imputa al valor 0 ya que consideramos que ese valor es una buena forma de estandarizar la ausencia de datos para esos campos.
 
+Se agregó el campo customer_state_abbr para guardar las abreviaciones de los estados. Por ejemplo, 
+para Sao Paulo es SP.
+
+Se modificó el valor de customer_state para que poseea el nombre completo. Así, por ejemplo, "SP" se transformó en "Sao Paulo"
+
 ---
 
 🗺️ Geolocalización
@@ -229,6 +237,11 @@ Control de nulos.
 
 Corrección de ciudades cuando aplica.
 
+Se agregó el campo seller_state_abbr para guardar las abreviaciones de los estados. Por ejemplo, 
+para Sao Paulo es SP.
+
+Se modificó el valor de seller_state para que poseea el nombre completo. Así, por ejemplo, "SP" se transformó en "Sao Paulo"
+
 ---
 
 📦 Órdenes
@@ -241,18 +254,12 @@ No duplicados en order_id.
 
 Validación secuencial de fechas:
 
-purchase
+$$(1)purchase\lt aprroved \lt delivered\_carrie \lt delivered\_customer$$
 
-approved
 
-delivered_carrier
-
-delivered_customer
-
-Corrección automática:
-
-Si una fecha es incoherente → se ajusta para que sea un día mayor. Este es un primer enfoque, puede 
-modificarse usando el promedio de las diferencias de fechas.
+Si una fecha es incoherente → Se calcula la diferencia de días entre los registros que cumplan (1) y que
+no tenga valores nulos. Si, por ejemplo, $delivered\_ carrie \gt delivered\_ customer$, se reemplaza por la mediana de las diferencias delivered_customer-delivered_carrie.
+Un criterio similar se aplica a los campos restantes.
 
 Se aplica solo a órdenes delivered. Los demás estados de las órdenes pueden tener algunos campos de fecha en valores nulos.
 
@@ -291,6 +298,9 @@ review_score > 0, caso contrario → imputación con mediana.
 
 Los campos para estas tablas son los mismos. Sólo se agrega un campo adicional que indica la fecha de creación de los registros.
 
+<div style="margin-top:1em">
+  <img src="Documentacion/imagenes/tabla_silver_layer.png">
+</div>
 <div style="margin-top:1em">
   <img src="Documentacion/imagenes/Flujo De Datos_CapaPlata.png">
 </div>
@@ -337,7 +347,7 @@ Los campos para estas tablas son los mismos. Sólo se agrega un campo adicional 
 📘 dim_customers
 
 
-<table> <tr><th style="border:2px solid black;">Campos</th><th style="border:2px solid black;">Explicación</th></tr> <tr><td style="border:2px solid black;">customer_key</td><td style="border:2px solid black;">La clave subrogada para la tabla de dimension</td></tr> <tr><td style="border:2px solid black;">customer_id</td><td style="border:2px solid black;">El identificador único del cliente de la base de datos transaccional.</td></tr> <tr><td style="border:2px solid black;">customer_unique_id</td><td style="border:2px solid black;">Identificador único de cliente. Útil si el cliente realiza recompras en las sucursales.</td></tr> <tr><td style="border:2px solid black;">customer_city</td><td style="border:2px solid black;">La ciudad donde vive el cliente</td></tr> <tr><td style="border:2px solid black;">customer_state</td><td style="border:2px solid black;">El estado donde vive el cliente</td></tr> 
+<table> <tr><th style="border:2px solid black;">Campos</th><th style="border:2px solid black;">Explicación</th></tr> <tr><td style="border:2px solid black;">customer_key</td><td style="border:2px solid black;">La clave subrogada para la tabla de dimension</td></tr> <tr><td style="border:2px solid black;">customer_id</td><td style="border:2px solid black;">El identificador único del cliente de la base de datos transaccional.</td></tr> <tr><td style="border:2px solid black;">customer_unique_id</td><td style="border:2px solid black;">Identificador único de cliente. Útil si el cliente realiza recompras en las sucursales.</td></tr> <tr><td style="border:2px solid black;">customer_city</td><td style="border:2px solid black;">La ciudad donde vive el cliente</td></tr> <tr><td style="border:2px solid black;">customer_state</td><td style="border:2px solid black;">El estado donde vive el cliente. Por ej: Sao Paulo, Rio de Janeiro,...</td></tr>  
 <tr><td style="border:2px solid black;">customer_city_lat</td><td style="border:2px solid black;">La latitud de la ciudad del cliente.</td></tr> 
 <tr><td style="border:2px solid black;">customer_city_lng</td><td style="border:2px solid black;">La longitud de la ciudad donde vive el cliente </td></tr>
 </table>
@@ -347,7 +357,7 @@ Los campos para estas tablas son los mismos. Sólo se agrega un campo adicional 
 📘 dim_sellers
 
 
-<table> <tr><th style="border:2px solid black;">Campos</th><th style="border:2px solid black;">Explicación</th></tr> <tr><td style="border:2px solid black;">seller_key</td><td style="border:2px solid black;">La clave subrogada para la tabla de dimension</td></tr> <tr><td style="border:2px solid black;">seller_id</td><td style="border:2px solid black;">El identificador único del vendedor de la base de datos transaccional.</td></tr> <tr><td style="border:2px solid black;">seller_city</td><td style="border:2px solid black;">La ciudad donde vive el vendedor</td></tr> <tr><td style="border:2px solid black;">seller_state</td><td style="border:2px solid black;">El estado donde vive el vendedor</td></tr> 
+<table> <tr><th style="border:2px solid black;">Campos</th><th style="border:2px solid black;">Explicación</th></tr> <tr><td style="border:2px solid black;">seller_key</td><td style="border:2px solid black;">La clave subrogada para la tabla de dimension</td></tr> <tr><td style="border:2px solid black;">seller_id</td><td style="border:2px solid black;">El identificador único del vendedor de la base de datos transaccional.</td></tr> <tr><td style="border:2px solid black;">seller_city</td><td style="border:2px solid black;">La ciudad donde vive el vendedor</td></tr> <tr><td style="border:2px solid black;">seller_state</td><td style="border:2px solid black;">El estado donde vive el vendedor. Por ej: Sao Paulo, Rio de Janeiro</td></tr> 
 <tr><td style="border:2px solid black;">seller_city_lat</td><td style="border:2px solid black;">La latitud de la ciudad del vendedor.</td></tr> 
 <tr><td style="border:2px solid black;">seller_city_lng</td><td style="border:2px solid black;">La longitud de la ciudad donde vive el vendedor </td></tr>
 </table>
@@ -393,6 +403,69 @@ Los campos para estas tablas son los mismos. Sólo se agrega un campo adicional 
 Incluyen análisis de ventas como principal tabla de hechos. Permitirá mostrar de manera dinámica las ventas
 por cliente, vendedor, ciudades, estados, estados de las ordenes, y diferentes ámbitos de fecha como ser:
 por mes, por día, por cuatrimestre, etc.
+Para ir al repositiorio del dashboard siga este enlace <a href="https://github.com/matiasmierezsuarez/dashboard_bootcamp.git" target="_blank">Repositorio Dashboard</a>.
+
+
+### 📊 Ejemplos de resultados
+
+Para ilustrar el uso de los datos y el dashboard, vamos a establecer dos preguntas sobre los datos:
+
+<ol>
+<li>¿Cuáles son los diez vendedores con más ventas?</li>
+<li>¿Cuál es la evolución de las ventas a través de los años, años-meses y años-meses-días?</li>
+</ol>
+
+Para la primera pregunta, usando el dashboard obtuvimos el siguiente resultado
+
+<img src="Documentacion/imagenes/top10_vendedores.png">
+
+Con la información obtenida, una acción que puede tomarse es sugerir a nuestros clientes que esos 10 vendedores dicten clase de couching (podrá ser presencial o virtual) al resto de vendedores de la empresa.
+De esa manera, los vendedores de más abajo en cuanto ventas podrán aprender de los que más venden y ver si
+existe un aumento en las ventas generales e individuales.
+
+---
+
+Para el caso de la segunda pregunta, primero obtuvimos los datos de las ventas a través de los años
+
+<img src="Documentacion/imagenes/ventas_por_año.png">
+
+Inicialmente, notamos un aumento de las ventas de 2016 a 2017, y desde 2017 hasta 2018 continúa el aumento. Pero, en este último tramo, se puede percibir que el aumento es menos pronunciado.
+
+Si analizamos las ventas por años y meses, tenemos lo siguiente:
+
+<img src="Documentacion/imagenes/ventas_año_mes.png">
+
+Los dos puntos analizados son los que más llamaron nuestra atención. El rojo porque es el pico máximo de ventas y el verde porque es el pico donde las ventas decaen abruptamente.
+
+Si aplicamos un filtro más fino para la fecha indicada para el punto rojo, notaremos lo siguiente:
+
+<img src="Documentacion/imagenes/ventas_año_mes_dia.png">
+
+Se puede visualizar mejor que la fecha donde se alcanzó ese máximo es el 24/11/2017. 
+
+Investigando, encontramos que ese día fue Black Friday en Brasil. Aquí dejamos la noticia del diario digital de "La Nación" donde informa del evento: <a href="https://www.lanacion.com.ar/economia/black-friday-2017-furor-de-compras-en-los-estados-unidos-europa-y-brasil-nid2085339/" target="_blank">
+Black Friday 24/11/2017 En Brasil.
+</a>
+
+Ahora, nos falta analizar el punto verde de la gráfica. Si filtramos las fechas de manera más fina, nos queda lo siguiente
+
+<img src="Documentacion/imagenes/ventas_año_mes_dia_caida.png">
+
+A pesar de los picos de aumento, se nota una tendencia a la baja. No pudimos encontrar algún evento en particular ocurrido en Brasil dentro de esa fecha que pudiera explicar los resultados. Entonces, nuestra primera hipótesis fue "La inflación afectó a las compras en esos periodos".
+
+Para revisar si estábamos en lo correcto, revisamos las fuentes $[10]$ y $[11]$. Esto nos arrojó la siguiente tabla de inflación para Brasil entre 2016 y 2018
+
+<img src="Documentacion/imagenes/ventas_año_mes_resaltado.png">
+
+La baja inflación de 2017 y las ventas de fin de año donde la gente suele gastar un poco más, puede explicar
+el aumento de la curva desde el 12-2016 hasta alcanzar su pico en 11-2017 (con algunos altibajos). 
+Es razonable pensar así porque la inflación a principio de 2017 ya era significativamente más baja que la inflación en 2016 para el mismo período y alcanza su máximo en el Black Friday.
+
+Esa disminución de la inflación habrá dejado a la gente con dinero para gastar, y acompañado de las vaciones, mantiene un aumento de los gastos por un período más.
+
+Pero ya en Mayo se empieza a notar un aumento de la inflación y un amesetamiento de la curva entre Marzo y Mayo, con una tendencia a la caída en las ventas a partir de Mayo. Los números altos de inflación entre Mayo y Julio (alcanzando en Junio un máximo que rivaliza con la inflación más alta de 2016) están en sintonía con la tendencia a la baja de las ventas.
+
+No decimos que sea el único factor que afectó a la ventas, pero sí uno que debe tenerse en cuenta.
 
 <hr style="border: solid black 0.5em">
 
@@ -662,5 +735,24 @@ Ese archivo trae una guía paso a paso de cómo desplegar en Neon.
 7. Documentación PostgreSQL: https://www.postgresql.org/docs/
 8. Neon: https://neon.com/
 9. Proyecto De Dashboard Con Reflex Para Visualizar Los Datos: https://github.com/matiasmierezsuarez/dashboard_bootcamp.git
+10. Indicarores de Inflación de Brasil. Statbureu: https://www.statbureau.org/es/brazil/inflation-tables
+11. Datos Del Banco Mundial De Los Indicadores Inflacionarios De Brasil: https://datos.bancomundial.org/indicador/FP.CPI.TOTL.ZG?end=2024&locations=BR&start=2015&view=chart
 
+<hr style="border: solid black 0.5em">
 
+---
+
+## 	:computer: Autores
+
+Proyecto desarrollado para el Bootcamp Data Analytics impartido por Devligth 2025.
+Desarrolladores del Proyecto
+
+<ul>
+  <li>Mierez Suarez Matias. <a href="https://www.linkedin.com/in/matiasmierezsuarez/" target="_blank">Linkedin</a></li>
+  <li>Espinoza Enrique Manuel. <a href="www.linkedin.com/in/enrique-espinoza-948157224" target="_blank">Linkedin</a></li></li>
+  <li>Favaron Juan Cruz. Linkedin</li>
+  <li>Velázquez Yeny Elisa. Linkedin</li>
+  <li>Vargas Portillo Jonatan. Linkedin</li>
+</ul>
+
+   

@@ -382,6 +382,44 @@ BEGIN
         RAISE NOTICE '   • CARGA TOTAL (truncate + copy): %', load_duration;
         RAISE NOTICE '   • TRANSACCIÓN COMPLETA: %', total_duration;
         RAISE NOTICE '========================================';
+
+        	-- Fase 1: TRUNCATE para brazil_state_list
+        start_truncate := clock_timestamp();
+        RAISE NOTICE '🗑️  Ejecutando TRUNCATE...';
+        
+        TRUNCATE TABLE bronze.blog_mds_gov_br_brazil_state_list;
+        
+        truncate_duration := clock_timestamp() - start_truncate;
+        RAISE NOTICE '✅ TRUNCATE completado en: %', truncate_duration;
+        
+        -- Fase 2: COPY para olist_orders
+        start_copy := clock_timestamp();
+        RAISE NOTICE '📥 Ejecutando COPY desde CSV...';
+        
+        COPY bronze.blog_mds_gov_br_brazil_state_list FROM '/import_data/blog.mds.gov.br.lista_estados_brasil.csv' 
+        DELIMITER E';' 
+        CSV HEADER;
+        
+        end_copy := clock_timestamp();
+        copy_duration := end_copy - start_copy;
+    
+        
+        -- Cálculos finales de tiempos
+        total_duration := end_copy - start_total;
+        load_duration := end_copy - start_truncate;  -- truncate + copy
+        
+        -- REPORTE FINAL
+        RAISE NOTICE '========================================';
+        RAISE NOTICE '🎉 CARGA COMPLETADA EXITOSAMENTE para bronze.blog_mds_gov_br_brazil_state_list';
+        RAISE NOTICE '========================================';
+        RAISE NOTICE '📊 ESTADÍSTICAS:';
+        RAISE NOTICE '   Registros cargados: %', record_count;
+        RAISE NOTICE '⏱️  TIEMPOS:';
+        RAISE NOTICE '   • TRUNCATE: %', truncate_duration;
+        RAISE NOTICE '   • COPY: %', copy_duration;
+        RAISE NOTICE '   • CARGA TOTAL (truncate + copy): %', load_duration;
+        RAISE NOTICE '   • TRANSACCIÓN COMPLETA: %', total_duration;
+        RAISE NOTICE '========================================';
         
         
     EXCEPTION

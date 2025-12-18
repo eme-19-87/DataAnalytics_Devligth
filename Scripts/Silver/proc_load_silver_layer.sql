@@ -521,11 +521,14 @@ BEGIN
         SELECT 
             seller_id,
             seller_zip_code_prefix,
-            seller_state,
+            ss.brazil_state as "seller_state_abbr",
+            ss.brazil_state_name as "seller_state",
             -- Optimizamos: convertimos una sola vez a lower
             LOWER(TRIM(seller_city)) AS city_lower,
             TRIM(seller_city) AS original_city
-        FROM bronze.olist_sellers
+        FROM bronze.olist_sellers s
+        INNER JOIN bronze.blog_mds_gov_br_brazil_state_list ss
+        ON s.seller_state=ss.brazil_state
     ),
     transformed AS (
         SELECT
@@ -583,10 +586,11 @@ BEGIN
                 WHEN city_lower = 'sao sebastiao da grama/sp' THEN 'sao sebastiao da grama'
                 ELSE original_city
             END AS "seller_city",
-			seller_state
+			seller_state,
+            seller_state_abbr
         FROM cleaned
     )
-	INSERT INTO silver.olist_sellers(seller_id, seller_zip_code_prefix, seller_city, seller_state)
+	INSERT INTO silver.olist_sellers(seller_id, seller_zip_code_prefix, seller_city, seller_state,seller_state_abbr)
     SELECT * FROM transformed;
 
     dur_insert := clock_timestamp() - t_insert_start;
@@ -718,7 +722,8 @@ BEGIN
             customer_unique_id,
             customer_zip_code_prefix,
             customer_city,
-            customer_state
+            customer_state,
+            customer_state_abbr
         )
         SELECT 
             customer_id,
@@ -736,8 +741,11 @@ BEGIN
                 WHEN LOWER(customer_city) IN ('colonia jordaozinho') THEN TRIM('vitoria')
                 ELSE TRIM(customer_city)
             END AS customer_city,
-            TRIM(customer_state)
-        FROM bronze.olist_customers;
+            TRIM(ss.brazil_state_name) as "customer_state",
+            TRIM(ss.brazil_state) as "customer_state_abbr"
+        FROM bronze.olist_customers c
+        INNER JOIN bronze.blog_mds_gov_br_brazil_state_list ss 
+        ON c.customer_state=ss.brazil_state;
 
         v_end_insert := clock_timestamp();
 
@@ -1110,7 +1118,7 @@ BEGIN
 	RAISE NOTICE 'Tiempo en sellers:          % ms', EXTRACT(MILLISECOND FROM t_sellers_end - t_sellers_start);
 	RAISE NOTICE 'Tiempo en customers:        % ms', EXTRACT(MILLISECOND FROM t_customers_end - t_customers_start);
 	RAISE NOTICE 'Tiempo en geolocation:      % ms', EXTRACT(MILLISECOND FROM t_geo_end - t_geo_start);
-	RAISE NOTICE 'Tiempo en geolocation:      % ms', EXTRACT(MILLISECOND FROM t_trans_end - t_trans_start);
+	RAISE NOTICE 'Tiempo en traduccion:      % ms', EXTRACT(MILLISECOND FROM t_trans_end - t_trans_start);
     RAISE NOTICE '-----------------------------------------';
     RAISE NOTICE 'TIEMPO TOTAL:               % ms', EXTRACT(MILLISECOND FROM t_total_end - t_total_start);
     RAISE NOTICE '=== FIN DEL PROCESO MAESTRO ===';
@@ -1121,4 +1129,3 @@ EXCEPTION
 
 END;
 $$;
-

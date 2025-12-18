@@ -213,7 +213,8 @@ CREATE TABLE silver.olist_sellers (
     seller_id VARCHAR(50),
     seller_zip_code_prefix VARCHAR(10),
     seller_city VARCHAR(100),
-    seller_state VARCHAR(2),
+    seller_state VARCHAR(40),
+    seller_state_abbr VARCHAR(2),
 	seller_created_date TIMESTAMP DEFAULT CURRENT_DATE
 );
 
@@ -226,7 +227,10 @@ COMMENT ON COLUMN silver.olist_sellers.seller_zip_code_prefix IS 'First digits o
 
 COMMENT ON COLUMN silver.olist_sellers.seller_city IS 'City where the seller is based';
 
-COMMENT ON COLUMN silver.olist_sellers.seller_state IS 'Brazilian state where the seller is located (SP, RJ, MG, etc.)';
+COMMENT ON COLUMN silver.olist_sellers.seller_state IS 'Brazilian state where the seller is located (Sao Paulo, Rio De Janeiro,...)';
+
+COMMENT ON COLUMN silver.olist_sellers.seller_state_abbr IS 'Brazilian state abbrevation where the seller is located (SP, RJ, MG, etc.)';
+
 
 COMMENT ON COLUMN silver.olist_sellers.seller_created_date IS 'Fecha de creación de cuándo se insertó este registro en la capa plata';
 
@@ -242,7 +246,8 @@ CREATE TABLE silver.olist_customers (
     customer_unique_id VARCHAR(50),
     customer_zip_code_prefix VARCHAR(30),
     customer_city VARCHAR(100),
-    customer_state VARCHAR(2),
+    customer_state VARCHAR(40),
+    customer_state_abbr VARCHAR(2),
 	customer_created_date TIMESTAMP DEFAULT CURRENT_DATE
 	
 );
@@ -258,6 +263,7 @@ COMMENT ON COLUMN silver.olist_customers.customer_unique_id IS 'Identificador ú
 COMMENT ON COLUMN silver.olist_customers.customer_zip_code_prefix IS 'Los primeros cinco dígitos del código zip del consumidor';
 COMMENT ON COLUMN silver.olist_customers.customer_city IS 'Nombre de la ciudad del cliente';
 COMMENT ON COLUMN silver.olist_customers.customer_state IS 'Estado del cliente';
+COMMENT ON COLUMN silver.olist_customers.customer_state_abbr IS 'Abreviación del Estado del cliente';
 COMMENT ON COLUMN silver.olist_customers.customer_created_date IS 'La fecha en la que se creo el registro';
 
 --Creación de la tabla de geolocalización derivada de bronze.olist_geolocation

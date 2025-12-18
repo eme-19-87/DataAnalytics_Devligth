@@ -278,3 +278,23 @@ COMMENT ON TABLE bronze.olist_product_category_name_translation IS 'Translation 
 COMMENT ON COLUMN bronze.olist_product_category_name_translation.product_category_name IS 'Product category name in Portuguese (original language)';
 
 COMMENT ON COLUMN bronze.olist_product_category_name_translation.product_category_name_english IS 'Translated product category name in English';
+
+
+-- Elimina la tabla si ya existe
+DROP TABLE IF EXISTS bronze.blog_mds_gov_br_lista_estados_brasil;
+
+-- Crea la tabla bronze.blog_mds_gov_br_lista_estados_brasil derivada de blog.mds.gov.br.lista_estados_brasil.csv
+--Fuente: https://blog.mds.gov.br/redesuas/lista-de-municipios-brasileiros/
+CREATE TABLE bronze.blog_mds_gov_br_brazil_state_list(
+    id SMALLSERIAL,
+    brazil_state VARCHAR(2),
+    brazil_state_name VARCHAR(50)
+);
+
+-- Comentarios para documentación
+COMMENT ON TABLE bronze.blog_mds_gov_br_brazil_state_list IS 'Translation table for customer_state an seller_state. Ej: Transform "SP" in "Sao Paulo" ';
+
+COMMENT ON COLUMN bronze.blog_mds_gov_br_brazil_state_list.id IS 'Unique identification column';
+
+COMMENT ON COLUMN bronze.blog_mds_gov_br_brazil_state_list.brazil_state IS 'The abbreviate name of the state. Ej: "SP", "MG",..';
+COMMENT ON COLUMN bronze.blog_mds_gov_br_brazil_state_list.brazil_state_name IS 'The long state name. Ej: "Sao Paulo", "Rio de Janeiro", ....';
