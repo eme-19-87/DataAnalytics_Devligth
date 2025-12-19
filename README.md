@@ -750,8 +750,8 @@ Desarrolladores del Proyecto
 <ul>
   <li>Mierez Suarez Matias. <a href="https://www.linkedin.com/in/matiasmierezsuarez/" target="_blank">Linkedin</a></li>
   <li>Espinoza Enrique Manuel. <a href="http://www.linkedin.com/in/
-enrique-espinoza-948157224" target="_blank">Linkedin</a></li></li>
-  <li>Favaron Juan Cruz. Linkedin</li>
+enrique-espinoza-948157224" target="_blank">Linkedin</a></li>
+  <li>Favaron Juan Cruz. <a href="https://ar.linkedin.com/in/juancruz-favaron-959a43222" target="_blank">Linkedin</a></li>
   <li>Velázquez Yeny Elisa. Linkedin</li>
   <li>Vargas Portillo Jonatan. Linkedin</li>
 </ul>
